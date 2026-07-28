@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NECTAR</title>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body,html{width:100%;height:100%;overflow:hidden;background:#0a0f08;font-family:'Inter',sans-serif;color:#e8e0cc}
+#renderCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;touch-action:none}
+
+/* ── SCREENS ── */
+.screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:50;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(5,10,4,0.92);backdrop-filter:blur(6px)}
+.screen.hidden{display:none!important}
+
+.game-title{font-family:'Cinzel',serif;font-size:clamp(56px,8vw,96px);font-weight:900;color:#d4a84b;letter-spacing:16px;text-shadow:0 0 60px rgba(212,168,75,0.4),0 4px 20px rgba(0,0,0,0.8);margin-bottom:8px}
+.game-subtitle{font-family:'Cinzel',serif;font-size:13px;letter-spacing:6px;color:rgba(212,168,75,0.5);margin-bottom:60px;text-transform:uppercase}
+
+.forest-divider{width:200px;height:1px;background:linear-gradient(90deg,transparent,#d4a84b,transparent);margin:0 auto 40px}
+
+.menu-btn{font-family:'Cinzel',serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;padding:14px 48px;background:transparent;border:1px solid rgba(212,168,75,0.5);color:#d4a84b;cursor:pointer;transition:all 0.3s;margin:6px;min-width:240px}
+.menu-btn:hover{background:rgba(212,168,75,0.1);border-color:#d4a84b;box-shadow:0 0 20px rgba(212,168,75,0.2);letter-spacing:6px}
+.menu-btn.danger{border-color:rgba(180,60,60,0.5);color:#c05050}
+.menu-btn.danger:hover{background:rgba(180,60,60,0.1);border-color:#c05050}
+
+.section-title{font-family:'Cinzel',serif;font-size:20px;letter-spacing:6px;color:#d4a84b;margin-bottom:30px;text-transform:uppercase}
+
+/* Player count buttons */
+.player-grid{display:flex;gap:16px;margin-bottom:32px;flex-wrap:wrap;justify-content:center}
+.player-btn{width:68px;height:68px;font-family:'Cinzel',serif;font-size:22px;background:transparent;border:1px solid rgba(212,168,75,0.4);color:#d4a84b;cursor:pointer;transition:all 0.3s;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)}
+.player-btn:hover,.player-btn.active{background:rgba(212,168,75,0.15);border-color:#d4a84b;box-shadow:0 0 20px rgba(212,168,75,0.3)}
+
+/* Name inputs */
+.names-grid{display:flex;flex-direction:column;gap:12px;width:340px;max-height:52vh;overflow-y:auto;margin-bottom:24px;padding-right:0;scrollbar-width:none}
+.names-grid::-webkit-scrollbar{display:none}
+.name-row{display:flex;align-items:center;gap:12px}
+.name-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.name-input{flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(212,168,75,0.3);color:#e8e0cc;font-family:'Inter',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s,color 0.2s}
+.name-input:focus{border-color:rgba(212,168,75,0.7)}
+.name-input.default-active{color:rgba(232,224,204,0.25)}
+.ai-toggle{background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:2px;padding:6px 10px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.ai-toggle.on{border-color:rgba(80,180,100,0.6);color:#50b464;background:rgba(80,180,100,0.08)}
+
+/* Rules */
+.rules-box{max-width:580px;max-height:68vh;overflow-y:auto;padding:32px;border:1px solid rgba(212,168,75,0.2);background:rgba(10,15,8,0.6);text-align:left;scrollbar-width:thin;scrollbar-color:#d4a84b22 transparent}
+.rules-box h3{font-family:'Cinzel',serif;color:#d4a84b;font-size:13px;letter-spacing:3px;margin:20px 0 8px;text-transform:uppercase}
+.rules-box p{font-size:14px;line-height:1.7;color:rgba(232,224,204,0.8);margin-bottom:8px}
+.field-tag{display:inline-block;padding:2px 8px;border-radius:2px;font-size:11px;letter-spacing:1px;font-weight:600;margin:0 2px}
+.tag-black{background:#1a1a2e;color:#9090c0;border:1px solid #3a3a5e}
+.tag-gold{background:#3a2800;color:#d4a030;border:1px solid #6a5000}
+.tag-pink{background:#2e0818;color:#d060a0;border:1px solid #6e1840}
+
+/* ── HUD ── */
+#hud{position:fixed;top:0;left:0;width:100%;height:100%;z-index:20;pointer-events:none}
+#hud.hidden{display:none}
+
+.hud-panel{pointer-events:auto;background:rgba(5,10,4,0.75);backdrop-filter:blur(16px);border:1px solid rgba(212,168,75,0.18)}
+
+#score-panel{position:absolute;top:28px;left:28px;padding:20px 24px;min-width:200px}
+.score-row{display:flex;align-items:center;gap:10px;margin:7px 0}
+.score-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.score-name{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(232,224,204,0.6);flex:1}
+.score-bar-track{width:80px;height:2px;background:rgba(255,255,255,0.1);position:relative;overflow:visible}
+.score-bar-fill{position:absolute;top:0;left:0;height:100%;transition:width 0.6s ease;box-shadow:0 0 6px currentColor}
+.score-value{font-family:'Cinzel',serif;font-size:12px;color:#d4a84b;min-width:36px;text-align:right}
+.score-row.active .score-name{color:#e8e0cc}
+
+#turn-panel{position:absolute;top:28px;left:50%;transform:translateX(-50%);padding:16px 32px;text-align:center;min-width:220px}
+.turn-label{font-size:9px;letter-spacing:4px;color:rgba(212,168,75,0.5);margin-bottom:6px;text-transform:uppercase}
+#turn-name{font-family:'Cinzel',serif;font-size:18px;letter-spacing:3px;text-transform:uppercase;color:#d4a84b;padding-bottom:6px;border-bottom:1px solid rgba(212,168,75,0.3)}
+#ai-thinking{font-size:10px;letter-spacing:3px;color:rgba(212,168,75,0.5);margin-top:6px;min-height:14px;text-transform:uppercase}
+
+#controls-panel{position:absolute;top:28px;right:28px;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:auto}
+.ctrl-btn{font-family:'Cinzel',serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;padding:12px 24px;background:transparent;border:1px solid rgba(212,168,75,0.4);color:#d4a84b;cursor:pointer;transition:all 0.3s;pointer-events:auto}
+.ctrl-btn:hover:not(:disabled){background:rgba(212,168,75,0.1);border-color:#d4a84b}
+.ctrl-btn:disabled{opacity:0.2;cursor:not-allowed;border-color:rgba(255,255,255,0.1);color:rgba(255,255,255,0.3)}
+.ctrl-btn.secondary{border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);font-size:9px;padding:8px 16px}
+.ctrl-btn.secondary:hover{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.3);color:rgba(255,255,255,0.7)}
+
+#weather-bar{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);padding:10px 28px;text-align:center}
+#weather-text{font-size:11px;letter-spacing:3px;color:rgba(232,224,204,0.5);text-transform:uppercase}
+
+#dice-display{position:absolute;bottom:28px;right:28px;width:54px;height:54px;border:1px solid rgba(212,168,75,0.3);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:26px;color:#d4a84b;background:rgba(5,10,4,0.8);transition:all 0.4s}
+#dice-display.rolling{animation:diceRoll 0.5s ease}
+@keyframes diceRoll{0%,100%{transform:scale(1)}50%{transform:scale(1.2) rotate(15deg)}}
+
+#bee-panel{position:absolute;bottom:100px;left:28px;padding:20px 24px;min-width:260px;pointer-events:auto;display:none}
+#bee-panel h4{font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;color:#d4a84b;margin-bottom:14px;text-transform:uppercase}
+.token-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.token-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:13px;font-weight:700}
+.token-actions{display:flex;gap:8px}
+.action-btn{font-size:9px;letter-spacing:2px;padding:5px 10px;background:transparent;border:1px solid rgba(212,168,75,0.3);color:#d4a84b;cursor:pointer;transition:all 0.2s;text-transform:uppercase}
+.action-btn:hover{background:rgba(212,168,75,0.1);border-color:#d4a84b}
+.action-btn.chain{border-color:rgba(100,180,255,0.4);color:#64b4ff}
+.action-btn.chain:hover{background:rgba(100,180,255,0.1);border-color:#64b4ff}
+#bee-panel .moves-left{font-size:10px;letter-spacing:2px;color:rgba(232,224,204,0.4);margin-top:12px;text-transform:uppercase}
+
+/* Action mode indicator */
+#action-hint{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(5,10,4,0.9);border:1px solid rgba(212,168,75,0.4);padding:10px 20px;font-size:10px;letter-spacing:1.5px;color:#d4a84b;text-transform:uppercase;display:none;text-align:center;max-width:90vw}
+
+/* Win screen */
+#win-screen{background:rgba(5,10,4,0.97)}
+#win-name{font-family:'Cinzel',serif;font-size:clamp(32px,5vw,56px);letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+#win-subtitle{font-family:'Cinzel',serif;font-size:13px;letter-spacing:4px;color:rgba(212,168,75,0.6);margin-bottom:40px}
+.win-scores{display:flex;flex-direction:column;gap:10px;margin-bottom:40px;min-width:300px}
+.win-score-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border:1px solid rgba(255,255,255,0.06)}
+.win-score-row.winner{border-color:rgba(212,168,75,0.4);background:rgba(212,168,75,0.05)}
+
+/* Pause modal */
+#pause-modal{position:fixed;top:0;left:0;width:100%;height:100%;z-index:200;background:rgba(0,0,0,0.85);display:none;justify-content:center;align-items:center}
+#pause-modal.visible{display:flex}
+.pause-box{background:#0a0f08;border:1px solid rgba(212,168,75,0.3);padding:48px;min-width:340px;text-align:center}
+.pause-box h2{font-family:'Cinzel',serif;font-size:28px;letter-spacing:6px;color:#d4a84b;margin-bottom:32px}
+.score-list{display:flex;flex-direction:column;gap:10px;margin-bottom:32px}
+.score-list-row{display:flex;justify-content:space-between;font-size:14px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.06)}
+
+/* Forest hex legend */
+.hex-legend{display:flex;gap:16px;margin-bottom:40px;flex-wrap:wrap;justify-content:center}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;color:rgba(232,224,204,0.6)}
+.legend-hex{width:20px;height:20px;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)}
+
+/* Move-all-out button */
+#move-out-btn{display:none}
+
+/* Scroll hint for mobile */
+.copyright{font-family:'Cinzel',serif;font-size:11px;letter-spacing:2px;color:rgba(232,224,204,0.45);position:absolute;bottom:20px}
+</style>
+</head>
+<body>
+<canvas id="renderCanvas"></canvas>
+
+<!-- MAIN MENU -->
+<div id="screen-main" class="screen">
+  <div class="game-title">NECTAR</div>
+  <div class="game-subtitle">Sting or get stung</div>
+  <div class="forest-divider"></div>
+  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="showScreen('screen-players')">Play Game</button>
+  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="showScreen('screen-rules')">Rules</button>
+  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
+  <div class="copyright">© 2021–2026 Simon Allmer Entertainment</div>
+</div>
+
+<!-- PLAYER SELECTION -->
+<div id="screen-players" class="screen hidden">
+  <div class="game-title" style="font-size:clamp(32px,5vw,56px);margin-bottom:6px">PLAYERS</div>
+  <div class="game-subtitle">Choose number of players</div>
+  <div class="forest-divider"></div>
+  <div class="player-grid" id="player-grid">
+    <button class="player-btn" onclick="selectCount(2)">2</button>
+    <button class="player-btn" onclick="selectCount(3)">3</button>
+    <button class="player-btn" onclick="selectCount(4)">4</button>
+    <button class="player-btn" onclick="selectCount(5)">5</button>
+    <button class="player-btn" onclick="selectCount(6)">6</button>
+  </div>
+  <button class="menu-btn" onclick="showScreen('screen-main')" style="margin-top:20px;font-size:11px;min-width:140px">Back</button>
+</div>
+
+<!-- PLAYER NAMES -->
+<div id="screen-names" class="screen hidden">
+  <div class="game-title" style="font-size:clamp(28px,4vw,48px);margin-bottom:6px">SETUP</div>
+  <div class="game-subtitle">Name your colony · Toggle AI</div>
+  <div class="forest-divider"></div>
+  <div class="names-grid" id="names-grid"></div>
+  <button class="menu-btn" onclick="startGame()">Begin Game</button>
+  <button class="menu-btn" onclick="showScreen('screen-players')" style="font-size:11px;min-width:140px;margin-top:6px">Back</button>
+</div>
+
+<!-- RULES -->
+<div id="screen-rules" class="screen hidden">
+  <div class="game-title" style="font-size:clamp(28px,4vw,48px);margin-bottom:6px">RULES</div>
+  <div class="forest-divider" style="margin-bottom:20px"></div>
+  <div class="rules-box">
+    <h3>Goal</h3>
+    <p>Be the first player to collect <strong style="color:#d4a84b">10 Nectar Points</strong> and bring them to your home honeycomb.</p>
+
+    <h3>Turn Sequence</h3>
+    <p>1. The <strong>Weather Dice</strong> rolls. Based on the result, Nectar Tokens appear on the board.</p>
+    <p>2. You <strong>must move at least one</strong> of your bees one field. Each bee may move one field per turn.</p>
+    <p>3. When done, press <strong>Finish Turn</strong>.</p>
+
+    <h3>Nectar Fields &amp; Dice</h3>
+    <p><span class="field-tag tag-black">●&nbsp;1</span> Black fields: a roll of <strong>1</strong> places a 1-point token there.</p>
+    <p><span class="field-tag tag-gold">◆&nbsp;2</span> Gold fields: a roll of <strong>2</strong> places a 2-point token there.</p>
+    <p><span class="field-tag tag-pink">✦&nbsp;4</span> Pink/Center fields: a roll of <strong>4</strong> places a 4-point token there.</p>
+    <p>Rolls of 3, 5 or 6 place nothing. A bee standing on a field blocks new tokens there.</p>
+
+    <h3>Carrying &amp; Scoring</h3>
+    <p>A bee picks up a Nectar Token simply by moving onto that field. Carrying a token makes you vulnerable to capture. Return to your <strong>home honeycomb</strong> to permanently bank your tokens.</p>
+
+    <h3>Boost</h3>
+    <p>Spend a Nectar Token as fuel: the bee gains movement equal to that token's value. Use the Boost button in the bee panel.</p>
+
+    <h3>Chain</h3>
+    <p>Adjacent friendly bees can pass tokens between them without using any movement. Click the Chain button, then click the target bee.</p>
+
+    <h3>Blockade &amp; Capture</h3>
+    <p>A bee <em>without</em> a token cannot be attacked — use them as blockades. A bee <em>with</em> tokens can be attacked: the attacker steals all tokens and sends the defender home.</p>
+
+    <h3>Multiplayer (4–6 Players)</h3>
+    <p>Only 2 bees per player. The 1-token and 2-token fields are combined into a single <strong>split field</strong> — both token types drop there on rolls of 1 or 2.</p>
+
+    <h3>Winning</h3>
+    <p>First player to reach 10+ points wins. Play continues for 2nd and 3rd place if desired.</p>
+  </div>
+  <button class="menu-btn" onclick="showScreen('screen-main')" style="margin-top:24px">Back</button>
+</div>
+
+<!-- WIN SCREEN -->
+<div id="win-screen" class="screen hidden">
+  <div id="win-name"></div>
+  <div id="win-subtitle">Wins the Harvest!</div>
+  <div class="forest-divider"></div>
+  <div class="win-scores" id="win-scores"></div>
+  <button class="menu-btn" onclick="location.reload()">Play Again</button>
+</div>
+
+<!-- GAME HUD -->
+<div id="hud" class="hidden">
+  <!-- Scores (top-left) -->
+  <div id="score-panel" class="hud-panel">
+    <div id="score-rows"></div>
+  </div>
+
+  <!-- Turn indicator (top-center) -->
+  <div id="turn-panel" class="hud-panel">
+    <div class="turn-label">Current Turn</div>
+    <div id="turn-name">—</div>
+    <div id="ai-thinking"></div>
+  </div>
+
+  <!-- Controls (top-right) -->
+  <div id="controls-panel">
+    <button id="finish-btn" class="ctrl-btn" disabled onclick="nextTurn()">Finish Turn</button>
+    <button id="move-out-btn" class="ctrl-btn secondary" onclick="moveAllOut()">Move All Out</button>
+    <button class="ctrl-btn secondary" onclick="togglePause()">Pause</button>
+  </div>
+
+  <!-- Weather (bottom-center) -->
+  <div id="weather-bar" class="hud-panel">
+    <div id="weather-text">—</div>
+  </div>
+
+  <!-- Dice (bottom-right) -->
+  <div id="dice-display">—</div>
+
+  <!-- Bee Panel (bottom-left) -->
+  <div id="bee-panel" class="hud-panel">
+    <h4>Selected Bee</h4>
+    <div id="bee-panel-body"></div>
+    <div class="moves-left" id="bee-moves"></div>
+  </div>
+
+  <!-- Action Hint (bottom-center, above weather) -->
+  <div id="action-hint"></div>
+</div>
+
+<!-- PAUSE MODAL -->
+<div id="pause-modal">
+  <div class="pause-box">
+    <h2>Paused</h2>
+    <div class="score-list" id="pause-scores"></div>
+    <button class="menu-btn" onclick="togglePause()" style="width:100%;margin-bottom:10px">Resume</button>
+    <button class="menu-btn danger" onclick="location.reload()" style="width:100%;font-size:11px">End Game</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  NECTAR  –  Premium Edition  (Babylon.js 6 single-file)
+//  © 2025 Simon Allmer Entertainment
+// ═══════════════════════════════════════════════════════════════
+
+// ── CONSTANTS ──────────────────────────────────────────────────
+const HEX_R   = 1.55;   // axial radius (spacing)
+const HEX_SIZE= 1.55;   // mesh cylinder radius – must equal HEX_R for gapless tiling
+const HEX_H   = 0.22;   // hex tile height
+const BEE_Y   = 0.80;   // base hover height
+const WIN_SCORE = 10;
+const DIRECTIONS = [{q:1,r:0},{q:1,r:-1},{q:0,r:-1},{q:-1,r:0},{q:-1,r:1},{q:0,r:1}];
+
+const PLAYER_COLORS_HEX = ['#c0392b','#2980b9','#27ae60','#f39c12','#8e44ad','#16a085'];
+const PLAYER_COLORS_BJS = [
+  new BABYLON.Color3(0.75,0.22,0.17),
+  new BABYLON.Color3(0.16,0.50,0.73),
+  new BABYLON.Color3(0.15,0.68,0.38),
+  new BABYLON.Color3(0.95,0.61,0.07),
+  new BABYLON.Color3(0.56,0.27,0.68),
+  new BABYLON.Color3(0.09,0.63,0.52)
+];
+
+// Field material config
+const FIELD_CONFIG = {
+  default:   { color: new BABYLON.Color3(0.42,0.30,0.16), emissive: new BABYLON.Color3(0,0,0),          rough:0.9, metal:0.1 },
+  black:     { color: new BABYLON.Color3(0.10,0.10,0.16), emissive: new BABYLON.Color3(0.05,0.05,0.15), rough:0.4, metal:0.6 },
+  gold:      { color: new BABYLON.Color3(0.52,0.38,0.06), emissive: new BABYLON.Color3(0.25,0.15,0.00), rough:0.2, metal:0.9 },
+  pink:      { color: new BABYLON.Color3(0.36,0.06,0.22), emissive: new BABYLON.Color3(0.18,0.02,0.10), rough:0.3, metal:0.5 },
+  blackgold: { color: new BABYLON.Color3(0.28,0.22,0.08), emissive: new BABYLON.Color3(0.10,0.08,0.01), rough:0.5, metal:0.6 },
+  honeycomb: { color: new BABYLON.Color3(0.50,0.32,0.05), emissive: new BABYLON.Color3(0.10,0.06,0.00), rough:0.6, metal:0.3 }
+};
+
+// ── GAME STATE ──────────────────────────────────────────────────
+let scene, engine, camera, shadowGen;
+let boardGroup = [], hexMap = new Map();
+let beeMeshes = [], nectarMeshes = [];
+let players = [], bees = [], nectarTokens = [];
+let currentPlayerIndex = 0;
+let playerHasMovedThisTurn = false;
+let selectedBee = null;
+let actionMode = 'SELECT'; // SELECT | MOVE | CHAIN | CAPTURE_HOME
+let chainSource = null, captureData = null;
+let round = 1;
+let gameConfig = { playerCount: 3, playerNames: [], isAI: [] };
+let highlightedHexes = [];
+let chainHighlights = [];
+let captureHighlights = [];
+let isAITurn = false;
+let gameStarted = false;
+
+// ── SCREEN MANAGEMENT ──────────────────────────────────────────
+let activeScreen = 'screen-main';
+function showScreen(id) {
+  activeScreen = id;
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  if (id) document.getElementById(id).classList.remove('hidden');
+}
+
+function selectCount(n) {
+  gameConfig.playerCount = n;
+  document.querySelectorAll('.player-btn').forEach((b,i) => b.classList.toggle('active', i+2===n));
+  buildNamesForm(n);
+  showScreen('screen-names');
+}
+
+function buildNamesForm(n) {
+  const grid = document.getElementById('names-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement('div');
+    row.className = 'name-row';
+    const dot = document.createElement('div');
+    dot.className = 'name-dot';
+    dot.style.background = PLAYER_COLORS_HEX[i];
+    dot.style.boxShadow = `0 0 6px ${PLAYER_COLORS_HEX[i]}88`;
+    const inp = document.createElement('input');
+    inp.className = 'name-input';
+    inp.type = 'text';
+    inp.value = `Player ${i+1}`;
+    inp.dataset.defaultVal = `Player ${i+1}`;
+    inp.id = `name-input-${i}`;
+    inp.maxLength = 18;
+    inp.addEventListener('focus', () => {
+      if (inp.value === inp.dataset.defaultVal) {
+        inp.select();
+        inp.classList.add('default-active');
+      }
+    });
+    inp.addEventListener('keydown', e => {
+      if (inp.classList.contains('default-active') && (e.key === 'Backspace' || e.key === 'Delete')) {
+        e.preventDefault();
+      }
+    });
+    inp.addEventListener('input', () => inp.classList.remove('default-active'));
+    inp.addEventListener('blur', () => {
+      inp.classList.remove('default-active');
+      if (!inp.value.trim()) inp.value = inp.dataset.defaultVal;
+    });
+    const ai = document.createElement('button');
+    ai.className = 'ai-toggle';
+    ai.id = `ai-toggle-${i}`;
+    ai.dataset.on = '0';
+    ai.textContent = 'Human';
+    ai.onclick = () => {
+      const on = ai.dataset.on === '1';
+      ai.dataset.on = on ? '0' : '1';
+      ai.textContent = on ? 'Human' : 'AI';
+      ai.classList.toggle('on', !on);
+      if (!on) { inp.value = `AI Bee ${i+1}`; inp.disabled = true; }
+      else { inp.disabled = false; }
+    };
+    row.appendChild(dot);
+    row.appendChild(inp);
+    row.appendChild(ai);
+    grid.appendChild(row);
+  }
+}
+
+// ── BABYLON.JS INIT ────────────────────────────────────────────
+const canvas = document.getElementById('renderCanvas');
+engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer:true, stencil:true });
+
+function createScene() {
+  scene = new BABYLON.Scene(engine);
+  scene.clearColor = new BABYLON.Color4(0.02, 0.05, 0.02, 1);
+
+  // Fog
+  scene.fogMode  = BABYLON.Scene.FOGMODE_EXP2;
+  scene.fogDensity = 0.028;
+  scene.fogColor = new BABYLON.Color3(0.04, 0.08, 0.03);
+
+  // Camera
+  camera = new BABYLON.ArcRotateCamera('cam', Math.PI/3, Math.PI/3.8, 36, new BABYLON.Vector3(0, 0.5, 0), scene);
+  camera.lowerBetaLimit  = 0.3;
+  camera.upperBetaLimit  = Math.PI/2.4;
+  camera.lowerRadiusLimit = 16;
+  camera.upperRadiusLimit = 55;
+  camera.attachControl(canvas, true);
+  camera.wheelPrecision = 6;
+
+  // Lights
+  const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-1,-2,-0.5), scene);
+  sun.intensity = 1.6;
+  sun.diffuse   = new BABYLON.Color3(1.0, 0.95, 0.80);
+
+  const ambient = new BABYLON.HemisphericLight('amb', new BABYLON.Vector3(0,1,0), scene);
+  ambient.intensity = 0.5;
+  ambient.diffuse   = new BABYLON.Color3(0.5, 0.7, 0.4);
+  ambient.groundColor = new BABYLON.Color3(0.1, 0.12, 0.07);
+
+  const warmFill = new BABYLON.PointLight('fill', new BABYLON.Vector3(0, 6, 0), scene);
+  warmFill.intensity = 0.4;
+  warmFill.diffuse   = new BABYLON.Color3(1.0, 0.85, 0.5);
+
+  // Shadow generator (from sun)
+  shadowGen = new BABYLON.ShadowGenerator(1024, sun);
+  shadowGen.useBlurExponentialShadowMap = true;
+
+  buildForest();
+  buildBoard_empty();
+
+  // Picking
+  scene.onPointerDown = onPointerDown;
+
+  return scene;
+}
+
+// ── FOREST ENVIRONMENT ─────────────────────────────────────────
+function buildForest() {
+  // Ground
+  const gndMat = new BABYLON.StandardMaterial('gnd', scene);
+  gndMat.diffuseColor  = new BABYLON.Color3(0.06, 0.14, 0.05);
+  gndMat.specularColor = new BABYLON.Color3(0,0,0);
+  const gnd = BABYLON.MeshBuilder.CreateGround('gnd', {width:140, height:140}, scene);
+  gnd.material = gndMat;
+  gnd.receiveShadows = true;
+
+  // Mossy platform (board base)
+  const baseMat = new BABYLON.StandardMaterial('base', scene);
+  baseMat.diffuseColor  = new BABYLON.Color3(0.28, 0.18, 0.08);
+  baseMat.specularColor = new BABYLON.Color3(0.05, 0.03, 0.01);
+  const base = BABYLON.MeshBuilder.CreateCylinder('base', {
+    diameter:26, height:1.4, tessellation:32
+  }, scene);
+  base.position.y = -0.72;
+  base.material = baseMat;
+  base.receiveShadows = true;
+
+  // Trees scattered around
+  const treePositions = [];
+  const radii = [16,18,21,19,17,20,18,22,16,19,21,17];
+  const angles = Array.from({length:12},(_,i)=>i*(Math.PI*2/12) + Math.random()*0.5);
+  angles.forEach((a,i) => {
+    const r = radii[i % radii.length];
+    treePositions.push([ r*Math.cos(a), r*Math.sin(a) ]);
+  });
+
+  const trunkMat = new BABYLON.StandardMaterial('trunk', scene);
+  trunkMat.diffuseColor = new BABYLON.Color3(0.22, 0.13, 0.06);
+  const leaf1Mat = new BABYLON.StandardMaterial('leaf1', scene);
+  leaf1Mat.diffuseColor = new BABYLON.Color3(0.06, 0.22, 0.05);
+  const leaf2Mat = new BABYLON.StandardMaterial('leaf2', scene);
+  leaf2Mat.diffuseColor = new BABYLON.Color3(0.04, 0.18, 0.04);
+  const leaf3Mat = new BABYLON.StandardMaterial('leaf3', scene);
+  leaf3Mat.diffuseColor = new BABYLON.Color3(0.10, 0.28, 0.06);
+
+  const leafMats = [leaf1Mat, leaf2Mat, leaf3Mat];
+  treePositions.forEach(([tx,tz],i) => {
+    const h  = 4 + Math.random()*5;
+    const cr = 1.5 + Math.random()*1.5;
+    const trunk = BABYLON.MeshBuilder.CreateCylinder(`tr${i}`, {
+      diameterTop:0.3, diameterBottom:0.6, height:h, tessellation:7
+    }, scene);
+    trunk.position.set(tx, h/2-1, tz);
+    trunk.material = trunkMat;
+    shadowGen.addShadowCaster(trunk);
+
+    // 2-3 cone layers
+    const layers = 2 + Math.floor(Math.random()*2);
+    for (let l = 0; l < layers; l++) {
+      const cone = BABYLON.MeshBuilder.CreateCylinder(`tc${i}_${l}`, {
+        diameterTop:0, diameterBottom:(cr*(layers-l)/layers)*2, height:h*0.45, tessellation:7
+      }, scene);
+      cone.position.set(tx, h*(0.45 + l*0.28) - 1, tz);
+      cone.material = leafMats[l % 3];
+      shadowGen.addShadowCaster(cone);
+    }
+  });
+
+  // Floating pollen particles
+  const pollen = new BABYLON.ParticleSystem('pollen', 120, scene);
+  pollen.emitter = new BABYLON.Vector3(0, 3, 0);
+  pollen.createSphereEmitter(12);
+  pollen.color1 = new BABYLON.Color4(1.0, 0.95, 0.7, 0.6);
+  pollen.color2 = new BABYLON.Color4(0.8, 0.9, 0.5, 0.3);
+  pollen.minSize = 0.04; pollen.maxSize = 0.09;
+  pollen.minLifeTime = 4; pollen.maxLifeTime = 9;
+  pollen.emitRate = 12;
+  pollen.minEmitPower = 0.1; pollen.maxEmitPower = 0.4;
+  pollen.gravity = new BABYLON.Vector3(0, 0.02, 0);
+  pollen.start();
+}
+
+// ── HEX GRID ───────────────────────────────────────────────────
+function axialToWorld(q, r) {
+  return {
+    x: HEX_R * Math.sqrt(3) * (q + r/2),
+    z: HEX_R * 1.5 * r
+  };
+}
+
+function hexDist(a, b) {
+  return (Math.abs(a.q-b.q) + Math.abs(a.r-b.r) + Math.abs((a.q+a.r)-(b.q+b.r))) / 2;
+}
+
+function getNeighbors(q, r) {
+  return DIRECTIONS.map(d => ({q:q+d.q, r:r+d.r}));
+}
+
+function buildBoard_empty() {
+  hexMap.clear();
+  boardGroup.forEach(m => m.dispose());
+  boardGroup = [];
+}
+
+function buildBoard(isMultiplayer) {
+  buildBoard_empty();
+
+  // Ring 0
+  addHex(0, 0, 'pink');
+
+  // Rings 1–3
+  for (let ring = 1; ring <= 3; ring++) {
+    let q = -ring, r = ring;
+    for (let i = 0; i < 6; i++) {
+      for (let j = 0; j < ring; j++) {
+        const type = classifyHex(q, r, isMultiplayer);
+        addHex(q, r, type);
+        q += DIRECTIONS[i].q;
+        r += DIRECTIONS[i].r;
+      }
+    }
+  }
+
+  // Honeycombs outside ring 3
+  const corners = [{q:0,r:-3},{q:3,r:-3},{q:3,r:0},{q:0,r:3},{q:-3,r:3},{q:-3,r:0}];
+  corners.forEach(c => {
+    DIRECTIONS.forEach(d => {
+      const nq = c.q+d.q, nr = c.r+d.r;
+      const dist = (Math.abs(nq)+Math.abs(nr)+Math.abs(nq+nr))/2;
+      if (dist > 3 && !hexMap.has(`${nq},${nr}`)) {
+        addHex(nq, nr, 'honeycomb');
+      }
+    });
+  });
+}
+
+function classifyHex(q, r, isMultiplayer) {
+  const blackSet  = [[-2,2],[2,0],[0,-2]];
+  const goldSet   = [[-2,0],[0,2],[2,-2]];
+  const inSet = (set) => set.some(([bq,br]) => bq===q && br===r);
+  if (isMultiplayer) {
+    if (inSet(blackSet) || inSet(goldSet)) return 'blackgold';
+  } else {
+    if (inSet(blackSet)) return 'black';
+    if (inSet(goldSet))  return 'gold';
+  }
+  return 'default';
+}
+
+function addHex(q, r, type) {
+  const cfg = FIELD_CONFIG[type] || FIELD_CONFIG.default;
+  const pos = axialToWorld(q, r);
+
+  const mat = new BABYLON.StandardMaterial(`hm_${q}_${r}`, scene);
+  mat.diffuseColor  = cfg.color.clone();
+  mat.emissiveColor = cfg.emissive.clone();
+  mat.specularColor = new BABYLON.Color3(0.3*cfg.metal, 0.3*cfg.metal, 0.3*cfg.metal);
+  mat.specularPower = 12;
+
+  const mesh = BABYLON.MeshBuilder.CreateCylinder(`hex_${q}_${r}`, {
+    diameter: HEX_SIZE*2, height: HEX_H, tessellation: 6
+  }, scene);
+  mesh.position.set(pos.x, HEX_H/2, pos.z);
+  mesh.rotation.y = Math.PI/6;
+  mesh.material = mat;
+  mesh.receiveShadows = true;
+  mesh.metadata = { q, r, type, baseColor: cfg.color.clone(), baseEmissive: cfg.emissive.clone() };
+
+  // Inset border ring (smaller than tile so it never bleeds into neighbours)
+  const borderMat = new BABYLON.StandardMaterial(`hbm_${q}_${r}`, scene);
+  borderMat.diffuseColor  = new BABYLON.Color3(0.0, 0.0, 0.0);
+  borderMat.emissiveColor = new BABYLON.Color3(0.0, 0.0, 0.0);
+  borderMat.alpha = 0.35;
+  const border = BABYLON.MeshBuilder.CreateCylinder(`hborder_${q}_${r}`, {
+    diameter: HEX_SIZE*2 - 0.12, height: HEX_H + 0.01, tessellation: 6
+  }, scene);
+  border.position.set(pos.x, HEX_H/2, pos.z);
+  border.rotation.y = Math.PI/6;
+  border.material = borderMat;
+  border.isPickable = false;
+
+  // Type labels (field indicators)
+  if (type === 'black' || type === 'gold' || type === 'pink' || type === 'blackgold') {
+    addFieldIndicator(pos.x, pos.z, type);
+  }
+
+  hexMap.set(`${q},${r}`, mesh);
+  boardGroup.push(mesh, border);
+  return mesh;
+}
+
+function addFieldIndicator(x, z, type) {
+  const labelMat = new BABYLON.StandardMaterial(`lm_${x}_${z}`, scene);
+  let emissive;
+  if (type==='black') emissive = new BABYLON.Color3(0.4,0.4,1.0);
+  else if (type==='gold') emissive = new BABYLON.Color3(1.0,0.7,0.0);
+  else if (type==='pink') emissive = new BABYLON.Color3(1.0,0.2,0.6);
+  else emissive = new BABYLON.Color3(0.8,0.5,0.2);
+  labelMat.emissiveColor = emissive;
+  labelMat.disableLighting = true;
+
+  const label = BABYLON.MeshBuilder.CreateDisc(`disc_${x}_${z}`, {radius:0.28, tessellation:6}, scene);
+  label.position.set(x, HEX_H+0.01, z);
+  label.rotation.x = Math.PI/2;
+  label.material = labelMat;
+  label.isPickable = false;
+  boardGroup.push(label);
+}
+
+// ── BEE CREATION ───────────────────────────────────────────────
+function createBee(playerId, q, r) {
+  const col = PLAYER_COLORS_BJS[playerId];
+  const pos = axialToWorld(q, r);
+  const root = new BABYLON.TransformNode(`bee_${playerId}_${q}_${r}`, scene);
+  root.position.set(pos.x, BEE_Y, pos.z);
+  root.rotation.y = Math.atan2(-pos.x, -pos.z);
+  root.metadata = { q, r, playerId, isBee:true, tokens:[], remainingMoves:1, movedThisTurn:false, time:Math.random()*10, towerRoot:null };
+
+  // Abdomen (main bee body – elongated sphere)
+  const abdMat = new BABYLON.StandardMaterial(`abd_${playerId}_${q}_${r}`, scene);
+  abdMat.diffuseColor  = new BABYLON.Color3(0.92, 0.72, 0.06);
+  abdMat.specularColor = new BABYLON.Color3(0.3,0.2,0.0);
+  const abd = BABYLON.MeshBuilder.CreateSphere(`abd_m`, {diameter:0.7, segments:10}, scene);
+  abd.parent = root;
+  abd.scaling = new BABYLON.Vector3(0.9, 1.2, 0.9);
+  abd.position.y = 0;
+  abd.material = abdMat;
+  shadowGen.addShadowCaster(abd);
+
+  // Stripes (3 black torus rings)
+  const stripeMat = new BABYLON.StandardMaterial(`stripe`, scene);
+  stripeMat.diffuseColor  = new BABYLON.Color3(0.06,0.04,0.02);
+  stripeMat.emissiveColor = new BABYLON.Color3(0.04,0.02,0.01);
+  for (let s = 0; s < 3; s++) {
+    const stripe = BABYLON.MeshBuilder.CreateTorus(`str_${s}`, {
+      diameter:0.64, thickness:0.09, tessellation:18
+    }, scene);
+    stripe.parent = root;
+    stripe.rotation.x = Math.PI/2;
+    stripe.position.y = -0.16 + s*0.18;
+    stripe.material = stripeMat;
+    stripe.isPickable = false;
+  }
+
+  // Thorax (small sphere between head and abdomen)
+  const thorMat = new BABYLON.StandardMaterial(`thor`, scene);
+  thorMat.diffuseColor  = new BABYLON.Color3(0.12, 0.08, 0.04);
+  thorMat.specularColor = new BABYLON.Color3(0.1,0.1,0.1);
+  const thor = BABYLON.MeshBuilder.CreateSphere(`thor_m`, {diameter:0.38, segments:8}, scene);
+  thor.parent = root;
+  thor.position.y = 0.44;
+  thor.material = thorMat;
+
+  // Head
+  const headMat = new BABYLON.StandardMaterial(`head`, scene);
+  headMat.diffuseColor  = new BABYLON.Color3(0.08, 0.06, 0.03);
+  const head = BABYLON.MeshBuilder.CreateSphere(`head_m`, {diameter:0.30, segments:8}, scene);
+  head.parent = root;
+  head.position.y = 0.66;
+  head.material = headMat;
+
+  // Eyes (two tiny white+black spheres)
+  const eyeMatW = new BABYLON.StandardMaterial(`eyeW`, scene);
+  eyeMatW.diffuseColor = new BABYLON.Color3(0.9,0.9,0.9);
+  const eyeMatB = new BABYLON.StandardMaterial(`eyeB`, scene);
+  eyeMatB.diffuseColor = new BABYLON.Color3(0,0,0);
+  [[-0.10,0],[0.10,0]].forEach(([ex,_]) => {
+    const ew = BABYLON.MeshBuilder.CreateSphere('eye', {diameter:0.10,segments:6},scene);
+    ew.parent=root; ew.position.set(ex,0.69,0.14); ew.material=eyeMatW; ew.isPickable=false;
+    const eb = BABYLON.MeshBuilder.CreateSphere('eyeB',{diameter:0.06,segments:6},scene);
+    eb.parent=root; eb.position.set(ex,0.69,0.17); eb.material=eyeMatB; eb.isPickable=false;
+  });
+
+  // Antennae
+  const antMat = new BABYLON.StandardMaterial('ant', scene);
+  antMat.diffuseColor = new BABYLON.Color3(0.06,0.04,0.02);
+  [[-0.08,0],[0.08,0]].forEach(([ax,_],i) => {
+    const rod = BABYLON.MeshBuilder.CreateCylinder(`ant${i}`, {
+      diameterTop:0.02, diameterBottom:0.03, height:0.28, tessellation:5
+    }, scene);
+    rod.parent = root;
+    rod.position.set(ax, 0.82, 0.06);
+    rod.rotation.x = (i===0 ? -0.4 : -0.4);
+    rod.rotation.z = (i===0 ? -0.35 : 0.35);
+    rod.material = antMat; rod.isPickable=false;
+    const tip = BABYLON.MeshBuilder.CreateSphere(`antT${i}`, {diameter:0.06,segments:6}, scene);
+    tip.parent = rod; tip.position.y = 0.15; tip.material = antMat; tip.isPickable=false;
+  });
+
+  // Wings (two translucent elliptical planes)
+  const wingMat = new BABYLON.StandardMaterial('wing', scene);
+  wingMat.diffuseColor  = new BABYLON.Color3(0.9,0.95,1.0);
+  wingMat.emissiveColor = new BABYLON.Color3(0.2,0.3,0.4);
+  wingMat.alpha = 0.30;
+  wingMat.backFaceCulling = false;
+
+  const lwRoot = new BABYLON.TransformNode('lwr', scene);
+  lwRoot.parent = root;
+  lwRoot.position.set(-0.25, 0.42, 0);
+  lwRoot.rotation.y = 0.5;
+  const lw = BABYLON.MeshBuilder.CreateDisc('lw', {radius:0.52, tessellation:16}, scene);
+  lw.parent = lwRoot; lw.scaling.x = 0.5; lw.rotation.z = 0.35; lw.material = wingMat; lw.isPickable=false;
+
+  const rwRoot = new BABYLON.TransformNode('rwr', scene);
+  rwRoot.parent = root;
+  rwRoot.position.set(0.25, 0.42, 0);
+  rwRoot.rotation.y = -0.5;
+  const rw = BABYLON.MeshBuilder.CreateDisc('rw', {radius:0.52, tessellation:16}, scene);
+  rw.parent = rwRoot; rw.scaling.x = 0.5; rw.rotation.z = -0.35; rw.material = wingMat; rw.isPickable=false;
+
+  // Player color glow ring (torus at base)
+  const glowMat = new BABYLON.StandardMaterial('glow', scene);
+  glowMat.emissiveColor = col.scale(0.9);
+  glowMat.disableLighting = true;
+  const glow = BABYLON.MeshBuilder.CreateTorus('glow', {
+    diameter:0.82, thickness:0.04, tessellation:24
+  }, scene);
+  glow.parent = root;
+  glow.rotation.x = Math.PI/2;
+  glow.position.y = -0.38;
+  glow.material = glowMat;
+  glow.isPickable = false;
+
+  // Store refs for animation
+  root.metadata.lwRoot = lwRoot;
+  root.metadata.rwRoot = rwRoot;
+  root.metadata.glowMesh = glow;
+  root.metadata.abdMesh  = abd;
+  root.metadata.abdMat   = abdMat;
+
+  // Assign click to all child meshes that are pickable
+  [abd, thor, head].forEach(m => {
+    m.metadata = { beeRoot: root };
+  });
+
+  beeMeshes.push(root);
+  return root;
+}
+
+// ── TOKEN TOWER ────────────────────────────────────────────────
+const TOKEN_COLORS = {
+  1: new BABYLON.Color3(0.14, 0.10, 0.06),
+  2: new BABYLON.Color3(0.85, 0.63, 0.12),
+  4: new BABYLON.Color3(0.82, 0.22, 0.48)
+};
+function updateTokenTower(beeMesh) {
+  if (beeMesh.metadata.towerRoot) {
+    beeMesh.metadata.towerRoot.getChildMeshes().forEach(m => m.dispose());
+    beeMesh.metadata.towerRoot.dispose();
+    beeMesh.metadata.towerRoot = null;
+  }
+  const tokens = beeMesh.metadata.tokens;
+  if (!tokens || tokens.length === 0) return;
+
+  const tr = new BABYLON.TransformNode('twr_' + beeMesh.name, scene);
+  tr.parent = beeMesh;
+  tr.position.y = 0.84; // sits just above the head
+  beeMesh.metadata.towerRoot = tr;
+
+  tokens.forEach((val, i) => {
+    const disc = BABYLON.MeshBuilder.CreateCylinder(`tdisc_${i}`, {
+      diameter: 0.30, height: 0.11, tessellation: 6
+    }, scene);
+    disc.parent = tr;
+    disc.position.y = i * 0.14;
+    disc.rotation.y = Math.PI / 6;
+    const mat = new BABYLON.StandardMaterial(`tdmat_${i}_${beeMesh.name}`, scene);
+    const col = TOKEN_COLORS[val] || TOKEN_COLORS[2];
+    mat.diffuseColor  = col;
+    mat.emissiveColor = col.scale(0.5);
+    mat.specularColor = new BABYLON.Color3(0.6, 0.5, 0.2);
+    disc.material = mat;
+    disc.isPickable = false;
+    shadowGen.addShadowCaster(disc);
+  });
+}
+
+// ── NECTAR TOKEN ───────────────────────────────────────────────
+function createNectarToken(q, r, value) {
+  const pos = axialToWorld(q, r);
+  const root = new BABYLON.TransformNode(`nectar_${q}_${r}`, scene);
+  root.position.set(pos.x, HEX_H + 0.4, pos.z);
+  root.metadata = { q, r, value, isNectar:true };
+
+  let col, emissive;
+  if (value===1) { col=new BABYLON.Color3(0.20,0.20,0.55); emissive=new BABYLON.Color3(0.30,0.30,0.90); }
+  else if (value===2) { col=new BABYLON.Color3(0.55,0.38,0.00); emissive=new BABYLON.Color3(1.0,0.7,0.0); }
+  else { col=new BABYLON.Color3(0.60,0.05,0.30); emissive=new BABYLON.Color3(1.0,0.15,0.55); }
+
+  const mat = new BABYLON.StandardMaterial(`nm_${q}_${r}`, scene);
+  mat.diffuseColor  = col;
+  mat.emissiveColor = emissive.scale(0.6);
+  mat.specularColor = new BABYLON.Color3(0.8,0.8,0.8);
+  mat.specularPower = 32;
+
+  const gem = BABYLON.MeshBuilder.CreatePolyhedron(`gem_${q}_${r}`, {type:1, size:0.25}, scene);
+  gem.parent = root;
+  gem.material = mat;
+  gem.isPickable = false;
+  shadowGen.addShadowCaster(gem);
+
+  // Value label — shows how much the nectar is worth, always facing the camera
+  const labelTex = new BABYLON.DynamicTexture(`nlab_${q}_${r}`, {width:128, height:128}, scene, true);
+  labelTex.hasAlpha = true;
+  const lctx = labelTex.getContext();
+  lctx.clearRect(0, 0, 128, 128);
+  lctx.font = 'bold 92px Arial';
+  lctx.textAlign = 'center';
+  lctx.textBaseline = 'middle';
+  lctx.lineWidth = 10;
+  lctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  lctx.strokeText(String(value), 64, 68);
+  lctx.fillStyle = '#fff8e0';
+  lctx.fillText(String(value), 64, 68);
+  labelTex.update();
+  const labelMat = new BABYLON.StandardMaterial(`nlabm_${q}_${r}`, scene);
+  labelMat.diffuseTexture = labelTex;
+  labelMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  labelMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+  labelMat.opacityTexture = labelTex;
+  labelMat.disableLighting = true;
+  labelMat.backFaceCulling = false;
+  const label = BABYLON.MeshBuilder.CreatePlane(`nlabp_${q}_${r}`, {size:0.34}, scene);
+  label.parent = root;
+  label.material = labelMat;
+  label.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+  label.isPickable = false;
+  label.renderingGroupId = 1; // draw over the gem so the value is always readable
+
+  // Glow disc below
+  const discMat = new BABYLON.StandardMaterial(`nd_${q}_${r}`, scene);
+  discMat.emissiveColor = emissive.scale(0.4);
+  discMat.disableLighting = true;
+  discMat.alpha = 0.5;
+  const disc = BABYLON.MeshBuilder.CreateDisc(`nd2_${q}_${r}`, {radius:0.36, tessellation:18}, scene);
+  disc.parent = root;
+  disc.rotation.x = Math.PI/2;
+  disc.position.y = -0.32;
+  disc.material = discMat;
+  disc.isPickable = false;
+
+  root.metadata.gem = gem;
+  nectarMeshes.push(root);
+  nectarTokens.push({ q, r, value, mesh: root });
+  return root;
+}
+
+// ── GAME INIT ──────────────────────────────────────────────────
+function startGame() {
+  // Collect names + AI flags
+  gameConfig.playerNames = [];
+  gameConfig.isAI = [];
+  for (let i = 0; i < gameConfig.playerCount; i++) {
+    const inp = document.getElementById(`name-input-${i}`);
+    const ai  = document.getElementById(`ai-toggle-${i}`);
+    gameConfig.playerNames.push(inp?.value.trim() || `Player ${i+1}`);
+    gameConfig.isAI.push(ai?.dataset.on === '1');
+  }
+
+  showScreen(null);
+  document.getElementById('hud').classList.remove('hidden');
+
+  buildBoard(gameConfig.playerCount >= 4);
+  initGame();
+  gameStarted = true;
+}
+
+function initGame() {
+  players = []; bees = []; nectarTokens = []; beeMeshes = []; nectarMeshes = [];
+  currentPlayerIndex = 0; round = 1;
+  playerHasMovedThisTurn = false;
+  selectedBee = null; actionMode = 'SELECT';
+
+  const all6Corners = [{q:3,r:0},{q:0,r:3},{q:-3,r:3},{q:-3,r:0},{q:0,r:-3},{q:3,r:-3}];
+  const activeIdx = {2:[0,2], 3:[0,2,4], 4:[0,1,3,4], 5:[0,1,2,3,4], 6:[0,1,2,3,4,5]}[gameConfig.playerCount];
+  const beesPerPlayer = gameConfig.playerCount >= 4 ? 2 : 3;
+
+  activeIdx.forEach((locIdx, pIdx) => {
+    const corner = all6Corners[locIdx];
+    let homeHexes = DIRECTIONS
+      .map(d => ({q:corner.q+d.q, r:corner.r+d.r}))
+      .filter(n => (Math.abs(n.q)+Math.abs(n.r)+Math.abs(n.q+n.r))/2 > 3);
+
+    // Sort so middle is index 1
+    if (homeHexes.length === 3) {
+      const midIdx = homeHexes.findIndex((h,_i) => {
+        const others = homeHexes.filter((_,j)=>j!==_i);
+        return others.every(o => hexDist(h,o)===1);
+      });
+      if (midIdx > 0) [homeHexes[1], homeHexes[midIdx]] = [homeHexes[midIdx], homeHexes[1]];
+    }
+
+    // Color honeycomb hexes
+    const playerCol = PLAYER_COLORS_BJS[pIdx];
+    homeHexes.forEach(h => {
+      const m = hexMap.get(`${h.q},${h.r}`);
+      if (m) {
+        m.material.diffuseColor  = playerCol.clone();
+        m.material.emissiveColor = playerCol.scale(0.3);
+        m.metadata.owner = pIdx;
+      }
+    });
+
+    const player = { id:pIdx, score:0, homeCorners:homeHexes, locationIndex:locIdx,
+                     name:gameConfig.playerNames[pIdx], isAI:gameConfig.isAI[pIdx],
+                     color:PLAYER_COLORS_HEX[pIdx] };
+    players.push(player);
+
+    const hexIndices = beesPerPlayer===2 ? [0,2] : [0,1,2];
+    hexIndices.forEach((hIdx,bIdx) => {
+      if (hIdx >= homeHexes.length) return;
+      const h = homeHexes[hIdx];
+      const beeMesh = createBee(pIdx, h.q, h.r);
+      beeMesh.metadata.beeId = `${pIdx}-${bIdx}`;
+      bees.push(beeMesh);
+    });
+  });
+
+  triggerWeather();
+  updateHUD();
+  updateScorePanel();
+
+  // Show move-all-out in round 1
+  document.getElementById('move-out-btn').style.display = 'inline-block';
+
+  // Start AI turn if first player is AI
+  if (players[0].isAI) scheduleAITurn();
+}
+
+// ── WEATHER / DICE ─────────────────────────────────────────────
+function triggerWeather() {
+  const roll = Math.floor(Math.random() * 6) + 1;
+  const dice = document.getElementById('dice-display');
+  dice.textContent = roll;
+  dice.classList.add('rolling');
+  setTimeout(()=>dice.classList.remove('rolling'), 600);
+
+  let text = 'Nothing blooms';
+  const isMulti = gameConfig.playerCount >= 4;
+  if (roll===1) {
+    if (isMulti) spawnNectar(1,'blackgold'); else spawnNectar(1,'black');
+    text = '1-Token nectar has bloomed';
+  } else if (roll===2) {
+    if (isMulti) spawnNectar(2,'blackgold'); else spawnNectar(2,'gold');
+    text = '2-Token nectar has bloomed';
+  } else if (roll===4) {
+    spawnNectar(4,'pink');
+    text = '4-Token nectar has bloomed';
+  }
+  document.getElementById('weather-text').textContent = text;
+}
+
+function spawnNectar(value, type) {
+  hexMap.forEach((mesh, key) => {
+    if (mesh.metadata.type !== type) return;
+    const {q,r} = mesh.metadata;
+    if (bees.find(b=>b.metadata.q===q&&b.metadata.r===r)) return;
+    if (nectarTokens.find(n=>n.q===q&&n.r===r)) return;
+    createNectarToken(q, r, value);
+  });
+}
+
+// ── BEE POSITIONING ────────────────────────────────────────────
+function moveBeeToPos(beeMesh, q, r, animated=true) {
+  const pos = axialToWorld(q, r);
+  const prev = axialToWorld(beeMesh.metadata.q, beeMesh.metadata.r);
+  const dx = pos.x - prev.x, dz = pos.z - prev.z;
+  if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
+    beeMesh.rotation.y = Math.atan2(dx, dz);
+  }
+  beeMesh.metadata.q = q;
+  beeMesh.metadata.r = r;
+  if (animated) {
+    const anim = new BABYLON.Animation('mv','position', 60,
+      BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+    const current = beeMesh.position.clone();
+    anim.setKeys([
+      {frame:0,  value: current},
+      {frame:12, value: new BABYLON.Vector3(pos.x, BEE_Y+0.5, pos.z)},
+      {frame:24, value: new BABYLON.Vector3(pos.x, BEE_Y, pos.z)}
+    ]);
+    beeMesh.animations = [anim];
+    scene.beginAnimation(beeMesh, 0, 24, false);
+  } else {
+    beeMesh.position.set(pos.x, BEE_Y, pos.z);
+  }
+}
+
+// ── HIGHLIGHT SYSTEM ───────────────────────────────────────────
+function clearHighlights() {
+  highlightedHexes.forEach(m => {
+    if (!m || !m.material || !m.metadata || !m.name.startsWith('hex_')) return;
+    m.material.emissiveColor = m.metadata.baseEmissive ? m.metadata.baseEmissive.clone() : new BABYLON.Color3(0,0,0);
+    m.scaling.y = 1;
+  });
+  highlightedHexes = [];
+  chainHighlights.forEach(b => {
+    if (b.metadata?.abdMat) b.metadata.abdMat.emissiveColor = new BABYLON.Color3(0,0,0);
+  });
+  chainHighlights = [];
+  captureHighlights.forEach(m => {
+    if (!m || !m.material || !m.metadata) return;
+    m.material.emissiveColor = m.metadata.baseEmissive ? m.metadata.baseEmissive.clone() : new BABYLON.Color3(0,0,0);
+  });
+  captureHighlights = [];
+}
+
+function highlightHex(m, color) {
+  if (!m || !m.material || !m.name.startsWith('hex_')) return;
+  m.material.emissiveColor = color;
+  m.scaling.y = 1.8;
+  highlightedHexes.push(m);
+}
+
+function highlightValidMoves(beeMesh) {
+  clearHighlights();
+  const {q,r} = beeMesh.metadata;
+  getNeighbors(q,r).forEach(n => {
+    const m = hexMap.get(`${n.q},${n.r}`);
+    if (m && isValidMoveTarget(beeMesh.metadata, n.q, n.r)) {
+      highlightHex(m, new BABYLON.Color3(0.6, 0.8, 0.2));
+    }
+  });
+}
+
+function isValidMoveTarget(beeData, tq, tr) {
+  if (beeData.remainingMoves <= 0) return false;
+  if (hexDist(beeData, {q:tq,r:tr}) !== 1) return false;
+  if (bees.find(b=>b.metadata.q===tq&&b.metadata.r===tr)) return false;
+  const targetMesh = hexMap.get(`${tq},${tr}`);
+  if (!targetMesh) return false;
+  if (targetMesh.metadata.type==='honeycomb' && targetMesh.metadata.owner !== beeData.playerId) return false;
+  return true;
+}
+
+function isValidAttackTarget(attackerData, tq, tr) {
+  if (attackerData.remainingMoves <= 0) return false;
+  if (hexDist(attackerData, {q:tq,r:tr}) !== 1) return false;
+  const defender = bees.find(b=>b.metadata.q===tq&&b.metadata.r===tr);
+  if (!defender) return false;
+  if (defender.metadata.playerId === attackerData.playerId) return false;
+  if (defender.metadata.tokens.length === 0) return false;
+  return true;
+}
+
+function selectBee(beeMesh) {
+  deselectBee();
+  selectedBee = beeMesh;
+  if (beeMesh.metadata.abdMat) {
+    beeMesh.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.5, 0.4, 0.1);
+  }
+  actionMode = 'MOVE';
+  highlightValidMoves(beeMesh);
+
+  // Also highlight attack targets
+  const {q,r} = beeMesh.metadata;
+  getNeighbors(q,r).forEach(n => {
+    if (isValidAttackTarget(beeMesh.metadata, n.q, n.r)) {
+      const defender = bees.find(b=>b.metadata.q===n.q&&b.metadata.r===n.r);
+      if (defender && defender.metadata.abdMat) {
+        defender.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.8,0.1,0.1);
+        chainHighlights.push(defender);
+      }
+    }
+  });
+
+  updateBeePanel();
+  setActionHint('Move: tap a lit field  ·  Attack: tap enemy with nectar');
+}
+
+function deselectBee() {
+  if (selectedBee && selectedBee.metadata?.abdMat) {
+    selectedBee.metadata.abdMat.emissiveColor = new BABYLON.Color3(0,0,0);
+  }
+  selectedBee = null;
+  actionMode = 'SELECT';
+  clearHighlights();
+  updateBeePanel();
+  setActionHint('');
+  document.getElementById('bee-panel').style.display = 'none';
+}
+
+// ── MOVE EXECUTION ─────────────────────────────────────────────
+function executeMove(beeMesh, tq, tr) {
+  clearHighlights();
+  beeMesh.metadata.q = tq;
+  beeMesh.metadata.r = tr;
+  beeMesh.metadata.remainingMoves--;
+  beeMesh.metadata.movedThisTurn = true;
+  moveBeeToPos(beeMesh, tq, tr);
+  playerHasMovedThisTurn = true;
+
+  // Pick up nectar
+  const nIdx = nectarTokens.findIndex(n=>n.q===tq&&n.r===tr);
+  if (nIdx !== -1) {
+    const ntok = nectarTokens[nIdx];
+    beeMesh.metadata.tokens.push(ntok.value);
+    ntok.mesh.dispose();
+    nectarMeshes = nectarMeshes.filter(m=>m!==ntok.mesh);
+    nectarTokens.splice(nIdx,1);
+    updateTokenTower(beeMesh);
+  }
+
+  // Score if home
+  const hex = hexMap.get(`${tq},${tr}`);
+  if (hex && hex.metadata.type==='honeycomb' && hex.metadata.owner===beeMesh.metadata.playerId && beeMesh.metadata.tokens.length>0) {
+    const gained = beeMesh.metadata.tokens.reduce((a,b)=>a+b,0);
+    players[beeMesh.metadata.playerId].score += gained;
+    beeMesh.metadata.tokens = [];
+    updateTokenTower(beeMesh);
+    updateScorePanel();
+    spawnScoreParticle(tq, tr, gained, beeMesh.metadata.playerId);
+
+    if (players[beeMesh.metadata.playerId].score >= WIN_SCORE) {
+      setTimeout(()=>showWin(beeMesh.metadata.playerId), 600);
+      return;
+    }
+  }
+
+  if (beeMesh.metadata.remainingMoves > 0 && beeMesh === selectedBee) {
+    highlightValidMoves(beeMesh);
+  } else {
+    deselectBee();
+  }
+
+  document.getElementById('move-out-btn').style.display = 'none';
+  updateHUD();
+  updateBeePanel();
+}
+
+function spawnScoreParticle(q, r, val, playerId) {
+  const ps = new BABYLON.ParticleSystem('score', 40, scene);
+  const pos = axialToWorld(q, r);
+  ps.emitter = new BABYLON.Vector3(pos.x, 1, pos.z);
+  ps.createSphereEmitter(0.5);
+  const col = PLAYER_COLORS_BJS[playerId];
+  ps.color1 = new BABYLON.Color4(col.r, col.g, col.b, 1);
+  ps.color2 = new BABYLON.Color4(1,0.9,0.5,0.8);
+  ps.minSize=0.06; ps.maxSize=0.14;
+  ps.minLifeTime=0.5; ps.maxLifeTime=1.2;
+  ps.emitRate=80; ps.minEmitPower=1.5; ps.maxEmitPower=3.0;
+  ps.gravity = new BABYLON.Vector3(0,-2,0);
+  ps.start();
+  setTimeout(()=>ps.stop(), 300);
+  setTimeout(()=>ps.dispose(), 2000);
+}
+
+// ── CAPTURE ────────────────────────────────────────────────────
+function initiateCapture(attacker, defender) {
+  clearHighlights();
+  captureData = { attacker, defender };
+  actionMode = 'CAPTURE_HOME';
+
+  // Highlight victim's home hexes
+  const vPlayer = players[defender.metadata.playerId];
+  vPlayer.homeCorners.forEach(h => {
+    const m = hexMap.get(`${h.q},${h.r}`);
+    if (m) {
+      m.material.emissiveColor = new BABYLON.Color3(0.8,0.1,0.1);
+      captureHighlights.push(m);
+    }
+  });
+
+  setActionHint('Choose enemy\'s honeycomb to send them home');
+}
+
+function executeCapture(homeQ, homeR) {
+  const {attacker, defender} = captureData;
+
+  // Transfer tokens
+  attacker.metadata.tokens.push(...defender.metadata.tokens);
+  defender.metadata.tokens = [];
+
+  const oldQ = defender.metadata.q, oldR = defender.metadata.r;
+  moveBeeToPos(defender, homeQ, homeR);
+  attacker.metadata.q = oldQ;
+  attacker.metadata.r = oldR;
+  attacker.metadata.remainingMoves--;
+  attacker.metadata.movedThisTurn = true;
+  moveBeeToPos(attacker, oldQ, oldR);
+  playerHasMovedThisTurn = true;
+
+  clearHighlights();
+  captureData = null;
+  actionMode = 'SELECT';
+  deselectBee();
+  updateHUD();
+  setActionHint('Capture executed!');
+  setTimeout(()=>setActionHint(''),2000);
+}
+
+// ── CHAIN ──────────────────────────────────────────────────────
+function initiateChain(sourceBee, tokenIndex) {
+  chainSource = { bee:sourceBee, tokenIndex };
+  actionMode = 'CHAIN';
+  clearHighlights();
+
+  // Find connected friendly bees
+  const connected = getConnectedFriendlyBees(sourceBee);
+  connected.forEach(b => {
+    if (b.metadata.abdMat) b.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.1,0.4,0.9);
+    chainHighlights.push(b);
+  });
+
+  setActionHint('Click a highlighted friendly bee to pass the token');
+}
+
+function getConnectedFriendlyBees(sourceBee) {
+  const visited = new Set([sourceBee.metadata.beeId]);
+  const queue   = [sourceBee];
+  const result  = [];
+  while (queue.length) {
+    const cur = queue.shift();
+    const nbors = bees.filter(b => {
+      if (visited.has(b.metadata.beeId)) return false;
+      if (b.metadata.playerId !== sourceBee.metadata.playerId) return false;
+      return hexDist(cur.metadata, b.metadata) === 1;
+    });
+    nbors.forEach(nb => {
+      visited.add(nb.metadata.beeId);
+      result.push(nb);
+      queue.push(nb);
+    });
+  }
+  return result;
+}
+
+function animateTokenFly(fromBee, toBee, val, onComplete) {
+  const col = TOKEN_COLORS[val] || TOKEN_COLORS[2];
+  const disc = BABYLON.MeshBuilder.CreateCylinder('flyToken', {
+    diameter: 0.32, height: 0.11, tessellation: 6
+  }, scene);
+  disc.rotation.y = Math.PI / 6;
+  const mat = new BABYLON.StandardMaterial('flyTokMat', scene);
+  mat.diffuseColor  = col;
+  mat.emissiveColor = col.scale(0.9);
+  mat.specularColor = new BABYLON.Color3(0.6, 0.5, 0.2);
+  disc.material = mat;
+  disc.isPickable = false;
+
+  const towerHeight = (n) => BEE_Y + 0.84 + Math.max(0, n - 1) * 0.14;
+  const from = new BABYLON.Vector3(fromBee.position.x, towerHeight(fromBee.metadata.tokens.length + 1), fromBee.position.z);
+  const to   = new BABYLON.Vector3(toBee.position.x,   towerHeight(toBee.metadata.tokens.length),      toBee.position.z);
+  disc.position = from.clone();
+
+  const arcH = 2.2, F = 36;
+  const posAnim = new BABYLON.Animation('tfly', 'position', 60,
+    BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+  posAnim.setKeys([0, 0.25, 0.5, 0.75, 1].map(t => ({
+    frame: Math.round(t * F),
+    value: new BABYLON.Vector3(
+      from.x + (to.x - from.x) * t,
+      from.y + (to.y - from.y) * t + 4 * arcH * t * (1 - t),
+      from.z + (to.z - from.z) * t
+    )
+  })));
+
+  const rotAnim = new BABYLON.Animation('trot', 'rotation.y', 60,
+    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+  rotAnim.setKeys([{frame:0, value:0}, {frame:F, value:Math.PI*5}]);
+
+  disc.animations = [posAnim, rotAnim];
+  scene.beginAnimation(disc, 0, F, false, 1.4, () => { disc.dispose(); onComplete(); });
+}
+
+function executeChain(targetBee) {
+  const {bee: source, tokenIndex} = chainSource;
+  const val = source.metadata.tokens[tokenIndex];
+  source.metadata.tokens.splice(tokenIndex, 1);
+  updateTokenTower(source);
+
+  chainSource = null;
+  actionMode = 'MOVE';
+  clearHighlights();
+  highlightValidMoves(source);
+  updateBeePanel();
+  setActionHint('Passing token…');
+
+  animateTokenFly(source, targetBee, val, () => {
+    const targetPlayer = players[targetBee.metadata.playerId];
+    const isHome = targetPlayer.homeCorners.some(h=>h.q===targetBee.metadata.q&&h.r===targetBee.metadata.r);
+    if (isHome) {
+      targetPlayer.score += val;
+      updateScorePanel();
+      spawnScoreParticle(targetBee.metadata.q, targetBee.metadata.r, val, targetBee.metadata.playerId);
+      if (targetPlayer.score >= WIN_SCORE) { setTimeout(()=>showWin(targetPlayer.id),600); return; }
+    } else {
+      targetBee.metadata.tokens.push(val);
+      updateTokenTower(targetBee);
+    }
+    setActionHint('Token passed!');
+    setTimeout(()=>setActionHint(''),1500);
+  });
+}
+
+// ── BOOST ──────────────────────────────────────────────────────
+function executeBoost(beeMesh, tokenIndex) {
+  const val = beeMesh.metadata.tokens[tokenIndex];
+  beeMesh.metadata.tokens.splice(tokenIndex,1);
+  beeMesh.metadata.remainingMoves += val;
+  updateTokenTower(beeMesh);
+  clearHighlights();
+  highlightValidMoves(beeMesh);
+  updateBeePanel();
+  setActionHint(`Boost! +${val} moves`);
+  setTimeout(()=>setActionHint(''),1500);
+}
+
+// ── MOVE ALL OUT ───────────────────────────────────────────────
+function moveAllOut() {
+  if (round !== 1) return;
+  const player = players[currentPlayerIndex];
+  const myBees = bees.filter(b=>b.metadata.playerId===currentPlayerIndex);
+  const homeBees = myBees.filter(b=>player.homeCorners.some(h=>h.q===b.metadata.q&&h.r===b.metadata.r));
+
+  homeBees.forEach(bee => {
+    const validMoves = [];
+    getNeighbors(bee.metadata.q, bee.metadata.r).forEach(n => {
+      if (isValidMoveTarget(bee.metadata, n.q, n.r)) validMoves.push(n);
+    });
+    if (validMoves.length === 0) return;
+    const target = validMoves[Math.floor(Math.random() * validMoves.length)];
+    executeMove(bee, target.q, target.r);
+  });
+
+  document.getElementById('move-out-btn').style.display = 'none';
+  playerHasMovedThisTurn = true;
+  updateHUD();
+}
+
+// ── INPUT HANDLING ─────────────────────────────────────────────
+function onPointerDown(evt) {
+  if (isAITurn) return;
+  const player = players[currentPlayerIndex];
+  if (player?.isAI) return;
+
+  const pick = scene.pick(scene.pointerX, scene.pointerY);
+  if (!pick.hit) { deselectBee(); return; }
+
+  const hit = pick.pickedMesh;
+  if (!hit) { deselectBee(); return; }
+
+  // Find bee root
+  let beeMesh = null;
+  if (hit.metadata?.beeRoot) beeMesh = hit.metadata.beeRoot;
+  else if (hit.parent?.metadata?.isBee) beeMesh = hit.parent;
+  else if (hit.metadata?.isBee) beeMesh = hit;
+
+  // Find hex
+  let hexMesh = null;
+  const key = hit.name?.startsWith('hex_') ? hit.name : null;
+  if (key) hexMesh = hit;
+  else hexMesh = hexMap.get(`${hit.metadata?.q},${hit.metadata?.r}`);
+
+  // ── CAPTURE HOME mode ──
+  if (actionMode==='CAPTURE_HOME' && hexMesh?.metadata) {
+    const {q,r} = hexMesh.metadata;
+    const victim = captureData?.defender;
+    if (!victim) { clearHighlights(); actionMode='SELECT'; return; }
+    const vPlayer = players[victim.metadata.playerId];
+    if (vPlayer.homeCorners.some(h=>h.q===q&&h.r===r)) {
+      const occupied = bees.find(b=>b.metadata.q===q&&b.metadata.r===r);
+      if (!occupied) executeCapture(q, r);
+    }
+    return;
+  }
+
+  // ── CHAIN mode ──
+  if (actionMode==='CHAIN' && beeMesh) {
+    const connected = getConnectedFriendlyBees(chainSource.bee);
+    if (connected.includes(beeMesh)) { executeChain(beeMesh); return; }
+    chainSource = null; actionMode='MOVE'; clearHighlights();
+    if (selectedBee) highlightValidMoves(selectedBee);
+    return;
+  }
+
+  // ── BEE CLICK ──
+  if (beeMesh) {
+    const isOwn = beeMesh.metadata.playerId === currentPlayerIndex;
+    if (isOwn) {
+      if (selectedBee === beeMesh) { deselectBee(); return; }
+      selectBee(beeMesh);
+      return;
+    } else {
+      // Enemy bee — attack?
+      if (selectedBee && isValidAttackTarget(selectedBee.metadata, beeMesh.metadata.q, beeMesh.metadata.r)) {
+        initiateCapture(selectedBee, beeMesh);
+      }
+      return;
+    }
+  }
+
+  // ── HEX CLICK ──
+  if (hexMesh?.metadata && selectedBee && actionMode==='MOVE') {
+    const {q,r} = hexMesh.metadata;
+    if (isValidMoveTarget(selectedBee.metadata, q, r)) {
+      executeMove(selectedBee, q, r);
+    } else {
+      deselectBee();
+    }
+    return;
+  }
+
+  deselectBee();
+}
+
+// ── HUD ────────────────────────────────────────────────────────
+function updateHUD() {
+  const p = players[currentPlayerIndex];
+  if (!p) return;
+  const turnName = document.getElementById('turn-name');
+  turnName.textContent = p.name.toUpperCase();
+  turnName.style.color  = p.color;
+  turnName.style.borderBottomColor = p.color;
+
+  document.getElementById('finish-btn').disabled = !playerHasMovedThisTurn;
+}
+
+function updateScorePanel() {
+  const container = document.getElementById('score-rows');
+  container.innerHTML = '';
+  players.forEach((p,i) => {
+    const row = document.createElement('div');
+    row.className = 'score-row' + (i===currentPlayerIndex?' active':'');
+    row.innerHTML = `
+      <div class="score-dot" style="background:${p.color};box-shadow:0 0 6px ${p.color}88"></div>
+      <div class="score-name">${p.name}</div>
+      <div class="score-bar-track">
+        <div class="score-bar-fill" style="width:${Math.min((p.score/WIN_SCORE)*100,100)}%;background:${p.color};box-shadow:0 0 6px ${p.color}"></div>
+      </div>
+      <div class="score-value">${p.score}<span style="opacity:0.4;font-size:9px">/${WIN_SCORE}</span></div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function updateBeePanel() {
+  const panel = document.getElementById('bee-panel');
+  if (!selectedBee || selectedBee.metadata.playerId!==currentPlayerIndex) {
+    panel.style.display='none'; return;
+  }
+  panel.style.display = 'block';
+  const body = document.getElementById('bee-panel-body');
+  const moves = document.getElementById('bee-moves');
+  const md = selectedBee.metadata;
+  moves.textContent = `${md.remainingMoves} move${md.remainingMoves!==1?'s':''} remaining`;
+
+  if (md.tokens.length===0) {
+    body.innerHTML = '<div style="font-size:12px;letter-spacing:1px;color:rgba(232,224,204,0.4);padding:8px 0">No nectar carried</div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  const connected = getConnectedFriendlyBees(selectedBee).length > 0;
+  md.tokens.forEach((val,idx) => {
+    const row = document.createElement('div');
+    row.className = 'token-row';
+    const badge = document.createElement('div');
+    badge.className = 'token-badge';
+    if (val===1) { badge.style.background='#1a1a2e'; badge.style.color='#8080d0'; badge.style.border='1px solid #3a3a6e'; }
+    else if (val===2) { badge.style.background='#3a2800'; badge.style.color='#d4a030'; badge.style.border='1px solid #6a5000'; }
+    else { badge.style.background='#2e0818'; badge.style.color='#d060a0'; badge.style.border='1px solid #6e1840'; }
+    badge.textContent = val;
+
+    const acts = document.createElement('div');
+    acts.className = 'token-actions';
+
+    const boostBtn = document.createElement('button');
+    boostBtn.className = 'action-btn';
+    boostBtn.textContent = `Boost +${val}`;
+    boostBtn.onclick = (e) => { e.stopPropagation(); executeBoost(selectedBee, idx); };
+    acts.appendChild(boostBtn);
+
+    if (connected) {
+      const chainBtn = document.createElement('button');
+      chainBtn.className = 'action-btn chain';
+      chainBtn.textContent = 'Chain';
+      chainBtn.onclick = (e) => { e.stopPropagation(); initiateChain(selectedBee, idx); };
+      acts.appendChild(chainBtn);
+    }
+
+    row.appendChild(badge);
+    row.appendChild(acts);
+    body.appendChild(row);
+  });
+}
+
+function setActionHint(text) {
+  const hint = document.getElementById('action-hint');
+  hint.textContent = text;
+  hint.style.display = text ? 'block' : 'none';
+}
+
+// ── TURN MANAGEMENT ────────────────────────────────────────────
+function nextTurn() {
+  if (!playerHasMovedThisTurn) return;
+  deselectBee();
+  bees.forEach(b => { b.metadata.movedThisTurn=false; b.metadata.remainingMoves=1; });
+  currentPlayerIndex = (currentPlayerIndex+1) % players.length;
+  if (currentPlayerIndex===0) { round++; document.getElementById('move-out-btn').style.display='none'; }
+  playerHasMovedThisTurn = false;
+  triggerWeather();
+  updateHUD();
+  updateScorePanel();
+  document.getElementById('ai-thinking').textContent='';
+
+  if (players[currentPlayerIndex].isAI) scheduleAITurn();
+  else document.getElementById('finish-btn').disabled = true;
+}
+
+// ── AI SYSTEM ──────────────────────────────────────────────────
+function scheduleAITurn() {
+  isAITurn = true;
+  document.getElementById('ai-thinking').textContent = 'Thinking…';
+  document.getElementById('finish-btn').disabled = true;
+  setTimeout(()=>runAITurn(), 900 + Math.random()*600);
+}
+
+function runAITurn() {
+  const player = players[currentPlayerIndex];
+  if (!player?.isAI) { isAITurn=false; return; }
+
+  const myBees = bees.filter(b=>b.metadata.playerId===currentPlayerIndex);
+  let moved = false;
+
+  // Evaluate and execute best move for each bee
+  const movePlan = computeAIMoves(player, myBees);
+  let delay = 0;
+  movePlan.forEach(plan => {
+    if (!plan) return;
+    setTimeout(() => {
+      executeMove(plan.bee, plan.tq, plan.tr);
+      moved = true;
+    }, delay);
+    delay += 500;
+  });
+
+  setTimeout(() => {
+    if (!playerHasMovedThisTurn) {
+      // Fallback: move any bee that can move
+      const fallback = myBees.find(b=>b.metadata.remainingMoves>0);
+      if (fallback) {
+        const moves = getNeighbors(fallback.metadata.q, fallback.metadata.r)
+          .filter(n=>isValidMoveTarget(fallback.metadata, n.q, n.r));
+        if (moves.length) executeMove(fallback, moves[0].q, moves[0].r);
+      }
+    }
+    isAITurn = false;
+    document.getElementById('ai-thinking').textContent = '';
+    setTimeout(()=>nextTurn(), 600);
+  }, delay + 600);
+}
+
+function computeAIMoves(player, myBees) {
+  const plans = [];
+  const used = new Set();
+
+  // Sort bees: carrying tokens first, then by score value
+  const sorted = [...myBees].sort((a,b) => {
+    const aVal = a.metadata.tokens.reduce((s,v)=>s+v,0);
+    const bVal = b.metadata.tokens.reduce((s,v)=>s+v,0);
+    return bVal - aVal;
+  });
+
+  sorted.forEach(bee => {
+    if (bee.metadata.remainingMoves <= 0) return;
+    const candidates = getNeighbors(bee.metadata.q, bee.metadata.r)
+      .filter(n => isValidMoveTarget(bee.metadata, n.q, n.r) && !used.has(`${n.q},${n.r}`));
+    if (!candidates.length) return;
+
+    let best = null, bestScore = -Infinity;
+    candidates.forEach(c => {
+      const s = aiScoreMove(bee, c.q, c.r, player);
+      if (s > bestScore) { bestScore=s; best=c; }
+    });
+
+    if (best) {
+      used.add(`${best.q},${best.r}`);
+      plans.push({ bee, tq:best.q, tr:best.r });
+    }
+  });
+
+  return plans;
+}
+
+function aiScoreMove(bee, tq, tr, player) {
+  let score = 0;
+  const carrying = bee.metadata.tokens.reduce((s,v)=>s+v,0);
+
+  // Scoring: going home with tokens = very good
+  const isHome = player.homeCorners.some(h=>h.q===tq&&h.r===tr);
+  if (isHome && carrying > 0) score += 1000 + carrying*100;
+
+  // Picking up nectar
+  const onNectar = nectarTokens.find(n=>n.q===tq&&n.r===tr);
+  if (onNectar) score += 200 + onNectar.value*50;
+
+  // Moving toward nectar
+  let minNectarDist = Infinity;
+  nectarTokens.forEach(n => {
+    const d = hexDist({q:tq,r:tr}, n);
+    if (d < minNectarDist) minNectarDist = d;
+  });
+  score += Math.max(0, 10-minNectarDist)*8;
+
+  // Moving toward home when carrying
+  if (carrying > 0) {
+    let minHomeDist = Infinity;
+    player.homeCorners.forEach(h => {
+      const d = hexDist({q:tq,r:tr}, h);
+      if (d < minHomeDist) minHomeDist = d;
+    });
+    const curDist = player.homeCorners.reduce((min,h)=>Math.min(min,hexDist(bee.metadata,h)),Infinity);
+    if (minHomeDist < curDist) score += 60 * carrying;
+  }
+
+  // Avoid being captured (moving away from enemies carrying tokens)
+  if (carrying > 0) {
+    bees.filter(b=>b.metadata.playerId!==currentPlayerIndex).forEach(enemy => {
+      if (hexDist({q:tq,r:tr}, enemy.metadata) <= 1) score -= 80;
+    });
+  }
+
+  // Random nudge for variety
+  score += Math.random()*10;
+  return score;
+}
+
+// ── WIN SCREEN ─────────────────────────────────────────────────
+function showWin(playerId) {
+  document.getElementById('hud').classList.add('hidden');
+  const screen = document.getElementById('win-screen');
+  screen.classList.remove('hidden');
+  const p = players[playerId];
+  document.getElementById('win-name').textContent = p.name.toUpperCase();
+  document.getElementById('win-name').style.color = p.color;
+
+  const sorted = [...players].sort((a,b)=>b.score-a.score);
+  const scoresDiv = document.getElementById('win-scores');
+  scoresDiv.innerHTML = '';
+  sorted.forEach((pl,i) => {
+    const row = document.createElement('div');
+    row.className = 'win-score-row' + (pl.id===playerId?' winner':'');
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    row.innerHTML = `<span style="color:${pl.color}">${medal} ${pl.name}</span><span style="color:#d4a84b;font-family:'Cinzel',serif">${pl.score} / ${WIN_SCORE}</span>`;
+    scoresDiv.appendChild(row);
+  });
+}
+
+// ── PAUSE ──────────────────────────────────────────────────────
+function togglePause() {
+  const m = document.getElementById('pause-modal');
+  const showing = m.classList.toggle('visible');
+  if (showing) {
+    const list = document.getElementById('pause-scores');
+    list.innerHTML = '';
+    players.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'score-list-row';
+      row.innerHTML = `<span style="color:${p.color}">${p.name}</span><span>${p.score} / ${WIN_SCORE}</span>`;
+      list.appendChild(row);
+    });
+  }
+}
+
+// ── RENDER LOOP ────────────────────────────────────────────────
+function animateScene(time) {
+  const t = time * 0.001;
+  beeMeshes.forEach(b => {
+    if (!b.metadata) return;
+    const active = b.metadata.playerId === currentPlayerIndex;
+    const hoverAmt = active ?
+      Math.sin(t*3.2 + b.metadata.time)*0.06 :
+      Math.sin(t*0.8 + b.metadata.time)*0.02;
+    b.position.y = BEE_Y + hoverAmt;
+
+    // Wing flap
+    const lwr = b.metadata.lwRoot, rwr = b.metadata.rwRoot;
+    if (lwr && rwr) {
+      const flapSpeed = active ? 28 : 8;
+      const flapAmt   = active ? 0.4 : 0.15;
+      const flap = Math.sin(t*flapSpeed + b.metadata.time) * flapAmt;
+      lwr.rotation.z =  0.5 + flap;
+      rwr.rotation.z = -0.5 - flap;
+    }
+
+    // Glow pulse for selected
+    if (b === selectedBee && b.metadata.glowMesh) {
+      b.metadata.glowMesh.scaling.setAll(1 + Math.sin(t*4)*0.06);
+    }
+
+    // Token tower sway — taller stacks sway more
+    if (b.metadata.towerRoot && b.metadata.tokens.length > 0) {
+      const swayScale = 0.04 + b.metadata.tokens.length * 0.03;
+      b.metadata.towerRoot.rotation.x = Math.sin(t * 2.1 + b.metadata.time) * swayScale;
+      b.metadata.towerRoot.rotation.z = Math.cos(t * 1.7 + b.metadata.time) * swayScale * 0.6;
+    }
+  });
+
+  // Nectar float
+  nectarMeshes.forEach((n,i) => {
+    if (n.metadata?.gem) {
+      n.metadata.gem.rotation.y = t * 1.2 + i;
+    }
+    n.position.y = HEX_H + 0.38 + Math.sin(t*1.8 + i*0.7)*0.08;
+  });
+}
+
+// ── BOOTSTRAP ─────────────────────────────────────────────────
+createScene();
+engine.runRenderLoop(() => {
+  animateScene(performance.now());
+  scene.render();
+});
+window.addEventListener('resize', () => engine.resize());
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (playerHasMovedThisTurn && !isAITurn) nextTurn();
+  }
+  if (e.code === 'Escape') {
+    if (activeScreen === 'screen-players' || activeScreen === 'screen-names') {
+      showScreen('screen-main');
+    } else if (activeScreen === null) {
+      // in-game: go back to player count
+      showScreen('screen-players');
+    }
+  }
+});
+
+// ── DEMO: skip the menus and drop straight into a game vs 2 AI opponents ──
+gameConfig.playerCount = 3;
+gameConfig.playerNames = ['You', 'Bombus', 'Apis'];
+gameConfig.isAI       = [false, true, true];
+showScreen(null);
+document.getElementById('hud').classList.remove('hidden');
+buildBoard(false);
+initGame();
+gameStarted = true;
+</script>
+<script src="demo-timer.js"></script>
+</body>
+</html>

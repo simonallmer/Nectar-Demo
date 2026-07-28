@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@300;400;700&display=swap');
+
+:root {
+    --gold: #c5a059;
+    --gold-bright: #f0d58e;
+    --obsidian: #0a0a0b;
+    --marble: #e8e8e8;
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --glass: rgba(255, 255, 255, 0.05);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--obsidian);
+    font-family: 'Inter', sans-serif;
+    color: white;
+}
+
+#three-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Luxury HUD */
+#ui-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    padding: 40px;
+    box-sizing: border-box;
+}
+
+.hud-panel {
+    pointer-events: auto;
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(197, 160, 89, 0.2);
+    border-radius: 2px;
+    padding: 20px;
+}
+
+/* Turn Indicator - Top Center */
+#turn-indicator-box {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+}
+
+#turn-indicator-box span {
+    display: block;
+    font-size: 10px;
+    color: var(--gold);
+    margin-bottom: 5px;
+}
+
+#current-player-display {
+    font-size: 24px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--gold);
+    padding-bottom: 5px;
+}
+
+/* Scoreboard - Top Left */
+#status-bar-container {
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.player-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: auto;
+    opacity: 0.8;
+    transition: opacity 0.3s;
+}
+
+.player-stat:hover {
+    opacity: 1;
+}
+
+.player-name {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+}
+
+.player-score-track {
+    width: 200px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    position: relative;
+}
+
+.player-score-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: var(--gold);
+    box-shadow: 0 0 10px var(--gold);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Controls - Top Right */
+.hud-controls {
+    position: absolute;
+    top: 40px;
+    right: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 20px;
+}
+
+.luxury-btn {
+    pointer-events: auto;
+    background: none;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    padding: 12px 30px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.4s;
+    border-radius: 0;
+    outline: none;
+}
+
+.luxury-btn:hover:not(.disabled) {
+    background: var(--gold);
+    color: var(--obsidian);
+    box-shadow: 0 0 20px rgba(197, 160, 89, 0.3);
+}
+
+.luxury-btn.disabled {
+    opacity: 0.2;
+    border-color: rgba(255,255,255,0.1);
+    color: var(--text-dim);
+    cursor: not-allowed;
+}
+
+/* Weather / Status Bar - Bottom Center */
+#weather-display {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 300;
+}
+
+/* Bee Detail Panel - Disappearing */
+#bee-panel {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    width: 300px;
+    background: rgba(10, 10, 11, 0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--gold);
+    padding: 25px;
+    display: none;
+    pointer-events: auto;
+}
+
+#bee-panel h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.token-item {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-buttons {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Generic Screen Overlays */
+.menu-screen {
+    display: none !important; /* Forces suppression of old screens */
+}
+
+/* Modal Styling */
+.modal {
+    background: rgba(0,0,0,0.95);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--obsidian);
+    border: 1px solid var(--gold);
+    width: 400px;
+}
+
+/* Custom CSS to hide everything old */
+div:has(h1.game-title), #main-menu, #player-selection {
+    display: none !important;
+}
