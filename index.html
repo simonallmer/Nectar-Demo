@@ -21,8 +21,11 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0a0f08;font-family:
 
 .forest-divider{width:200px;height:1px;background:linear-gradient(90deg,transparent,#d4a84b,transparent);margin:0 auto 40px}
 
-.menu-btn{font-family:'Cinzel',serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;padding:14px 48px;background:transparent;border:1px solid rgba(212,168,75,0.5);color:#d4a84b;cursor:pointer;transition:all 0.3s;margin:6px;min-width:240px}
-.menu-btn:hover{background:rgba(212,168,75,0.1);border-color:#d4a84b;box-shadow:0 0 20px rgba(212,168,75,0.2);letter-spacing:6px}
+/* text-indent cancels the trailing letter-space so the label sits optically
+   centred; the roomier padding keeps the longest label inside the box when
+   hover widens the tracking. */
+.menu-btn{font-family:'Cinzel',serif;font-size:14px;letter-spacing:4px;text-indent:4px;text-transform:uppercase;white-space:nowrap;padding:14px 28px;background:transparent;border:1px solid rgba(212,168,75,0.5);color:#d4a84b;cursor:pointer;transition:all 0.3s;margin:6px;min-width:280px}
+.menu-btn:hover{background:rgba(212,168,75,0.1);border-color:#d4a84b;box-shadow:0 0 20px rgba(212,168,75,0.2);letter-spacing:6px;text-indent:6px}
 .menu-btn.danger{border-color:rgba(180,60,60,0.5);color:#c05050}
 .menu-btn.danger:hover{background:rgba(180,60,60,0.1);border-color:#c05050}
 
@@ -197,6 +200,54 @@ body.mobile .action-btn{padding:8px 12px}
 body.mobile .pause-box{min-width:0;width:calc(100vw - 32px);padding:28px 20px}
 body.mobile .menu-btn{min-width:0;width:100%;max-width:280px;padding:13px 24px;font-size:12px}
 body.mobile .rules-box{padding:20px;max-height:62vh}
+body.mobile .hive-title{font-size:26px;letter-spacing:7px;text-indent:7px}
+body.mobile .hive-rules{font-size:10px;margin:12px 0 0}
+body.mobile .hive-keys{display:none}          /* no arrow keys on a phone */
+body.mobile #hive-board{width:94vw;height:46vh}
+body.mobile .hive-key{width:44px;height:44px;font-size:15px}
+body.mobile .hive-actions .menu-btn{width:auto;max-width:none;min-width:132px}
+body.mobile .hive-done p{font-size:12px}
+
+/* ── daily hive puzzle ─────────────────────────────────────────── */
+#screen-puzzle{justify-content:flex-start;padding:20px 16px 12px;overflow-y:auto}
+.hive-title{font-family:'Cinzel',serif;font-size:clamp(26px,4vw,42px);font-weight:900;letter-spacing:10px;text-indent:10px;color:#d4a84b;text-shadow:0 0 40px rgba(212,168,75,0.35)}
+.hive-sub{font-family:'Cinzel',serif;font-size:11px;letter-spacing:4px;text-indent:4px;color:rgba(212,168,75,0.6);text-transform:uppercase;margin-top:6px}
+.hive-line{display:flex;gap:16px;align-items:center;margin-top:8px;font-size:10px;letter-spacing:2px;color:rgba(232,224,204,0.35);text-transform:uppercase}
+#hive-streak{color:#d4a84b}
+.hive-rules{max-width:440px;text-align:center;font-size:11px;line-height:1.6;color:rgba(232,224,204,0.5);margin:12px 0 0}
+.hive-rules strong{color:rgba(212,168,75,0.8);font-weight:600}
+.hive-keys{display:block;margin-top:6px;font-size:10px;color:rgba(232,224,204,0.32)}
+.hive-credit{max-width:440px;text-align:center;font-size:9px;line-height:1.6;letter-spacing:0.5px;color:rgba(232,224,204,0.28);margin-top:12px}
+.hive-credit strong{color:rgba(212,168,75,0.5);font-weight:600}
+.hive-done .menu-btn{display:block}
+/* fixed box + the svg's own aspect fitting, so a wide flat hive uses the
+   width and a tall one uses the height instead of shrinking to a stamp */
+#hive-board{width:min(90vw,440px);height:min(48vh,330px);margin:6px 0;overflow:visible;touch-action:manipulation}
+/* thin neutral cell rims, thick gold rims where a comb ends — the two
+   have to read as different things at a glance */
+.hive-cell{fill:rgba(212,168,75,0.05);stroke:rgba(232,224,204,0.22);stroke-width:0.7;cursor:pointer;transition:fill 0.12s}
+.hive-cell.given{fill:rgba(212,168,75,0.12)}
+.hive-cell.peer{fill:rgba(212,168,75,0.14)}
+.hive-cell.sel{fill:rgba(212,168,75,0.32)}
+.hive-cut{stroke:#e0b45c;stroke-width:2.6;stroke-linecap:round;pointer-events:none}
+.hive-num{font-family:'Cinzel',serif;font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:middle;fill:rgba(232,224,204,0.92);pointer-events:none}
+.hive-num.given{fill:#d4a84b;font-weight:900}
+.hive-num.bad{fill:#e06a5a}
+.hive-pad{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:10px 0 4px}
+.hive-key{font-family:'Cinzel',serif;font-size:16px;width:46px;height:46px;background:transparent;border:1px solid rgba(212,168,75,0.4);color:#d4a84b;cursor:pointer;transition:all 0.2s}
+.hive-key:hover{background:rgba(212,168,75,0.14);border-color:#d4a84b}
+.hive-key.erase{color:rgba(232,224,204,0.5);border-color:rgba(232,224,204,0.2)}
+.hive-status{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(232,224,204,0.45);min-height:14px}
+.hive-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.hive-actions .menu-btn{min-width:150px;font-size:11px;padding:11px 20px}
+/* fixed, not absolute: the screen below it scrolls, and the fanfare
+   should stay centred on the viewport rather than on the scroll height */
+.hive-done{position:fixed;inset:0;background:rgba(5,10,4,0.95);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:5}
+.hive-done.hidden{display:none}
+.hive-done h2{font-family:'Cinzel',serif;font-size:clamp(24px,4vw,40px);letter-spacing:8px;text-indent:8px;color:#d4a84b;margin-bottom:12px}
+.hive-done p{font-size:13px;line-height:1.7;color:rgba(232,224,204,0.7);max-width:380px}
+.hive-done .tomorrow{font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:#d4a84b;margin-top:4px;max-width:none}
+.hive-done .streak{font-family:'Cinzel',serif;font-size:12px;letter-spacing:4px;text-indent:4px;color:rgba(212,168,75,0.75);text-transform:uppercase;margin:14px 0 16px}
 
 /* Landscape phone — very little vertical room */
 @media (max-height:520px){
@@ -207,6 +258,11 @@ body.mobile .rules-box{padding:20px;max-height:62vh}
   body.mobile .info-card p{font-size:12px;line-height:1.5}
   body.mobile #bee-panel{max-height:60vh}
   body.mobile #action-hint{bottom:100px}
+  body.mobile #screen-puzzle{padding-top:14px}
+  body.mobile .hive-title{font-size:20px;letter-spacing:5px;text-indent:5px}
+  body.mobile .hive-rules{display:none}
+  body.mobile #hive-board{height:58vh}
+  body.mobile .hive-key{width:38px;height:38px;font-size:14px}
 }
 </style>
 </head>
@@ -218,9 +274,10 @@ body.mobile .rules-box{padding:20px;max-height:62vh}
   <div class="game-title">NECTAR</div>
   <div class="game-subtitle">Sting or get stung</div>
   <div class="forest-divider"></div>
-  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="showScreen('screen-players')">Play Game</button>
-  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="showScreen('screen-rules')">Rules</button>
-  <button class="menu-btn" style="width:280px;white-space:nowrap" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
+  <button class="menu-btn" onclick="showScreen('screen-players')">Play Game</button>
+  <button class="menu-btn" onclick="openHivePuzzle()">Daily Hive</button>
+  <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
+  <button class="menu-btn" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
   <div class="copyright">© 2021–2026 Simon Allmer Entertainment</div>
 </div>
 
@@ -338,6 +395,37 @@ body.mobile .rules-box{padding:20px;max-height:62vh}
 
   <!-- Action Hint (bottom-center, above weather) -->
   <div id="action-hint"></div>
+</div>
+
+<!-- DAILY HIVE PUZZLE -->
+<div id="screen-puzzle" class="screen hidden">
+  <div class="hive-title">DAILY HIVE</div>
+  <div class="hive-sub" id="hive-sub">&mdash;</div>
+  <div class="hive-line"><span id="hive-date"></span><span id="hive-streak"></span></div>
+  <div class="hive-rules">
+    Each comb ringed in gold holds <strong>1 up to as many cells as it has</strong>, each number once.
+    No two cells that share an edge may hold the same number.
+    <span class="hive-keys">Tap a cell, or steer with the arrow keys and type a number.</span>
+  </div>
+  <svg id="hive-board"></svg>
+  <div class="hive-pad" id="hive-pad"></div>
+  <div class="hive-status" id="hive-status"></div>
+  <div class="hive-actions">
+    <button class="menu-btn" onclick="hiveClear()">Clear</button>
+    <button class="menu-btn" onclick="showScreen('screen-main')">Back</button>
+  </div>
+  <div class="hive-credit">
+    Cut Hive puzzles created by <strong>Paul Curzon</strong>, Queen Mary University of London,
+    inspired by the Cut Block puzzles of <strong>Naoki Inaba</strong> &middot; adapted by Simon Allmer
+  </div>
+  <div class="hive-done hidden" id="hive-done">
+    <h2>HIVE COMPLETE</h2>
+    <p>Every comb filled, not one clash. The colony is impressed.</p>
+    <div class="streak" id="hive-done-streak"></div>
+    <p class="tomorrow">Come back tomorrow for a new Hive Puzzle!</p>
+    <button class="menu-btn" style="margin-top:24px" onclick="hivePlayAgain()">Play Again</button>
+    <button class="menu-btn" onclick="showScreen('screen-main')">Back to Menu</button>
+  </div>
 </div>
 
 <!-- HOW TO PLAY (shown on phones at the start of a game) -->
@@ -613,8 +701,8 @@ function createScene() {
   buildForest();
   buildBoard_empty();
 
-  // Picking
-  scene.onPointerDown = onPointerDown;
+  // Picking — see attachTapHandler()
+  attachTapHandler();
 
   return scene;
 }
@@ -1386,9 +1474,13 @@ function initiateCapture(attacker, defender) {
 function executeCapture(homeQ, homeR) {
   const {attacker, defender} = captureData;
 
-  // Transfer tokens
+  // Transfer tokens — the towers have to be rebuilt or the loot stays
+  // visually stacked on the bee that just lost it.
+  const stolen = defender.metadata.tokens.reduce((a,b)=>a+b,0);
   attacker.metadata.tokens.push(...defender.metadata.tokens);
   defender.metadata.tokens = [];
+  updateTokenTower(defender);
+  updateTokenTower(attacker);
 
   const oldQ = defender.metadata.q, oldR = defender.metadata.r;
   moveBeeToPos(defender, homeQ, homeR);
@@ -1404,7 +1496,8 @@ function executeCapture(homeQ, homeR) {
   actionMode = 'SELECT';
   deselectBee();
   updateHUD();
-  setActionHint('Capture executed!');
+  updateBeePanel();
+  setActionHint(stolen > 0 ? `Stole ${stolen} nectar!` : 'Capture executed!');
   setTimeout(()=>setActionHint(''),2000);
 }
 
@@ -1562,12 +1655,41 @@ function moveAllOut() {
 }
 
 // ── INPUT HANDLING ─────────────────────────────────────────────
-function onPointerDown(evt) {
+// Acting on pointer *down* meant every camera drag also selected or dropped a
+// bee. Wait for the release instead and only count it if the finger stayed put.
+const TAP_SLOP = IS_MOBILE ? 18 : 10;   // px of wobble still counted as a tap
+const TAP_MAX_MS = 800;
+let tapStart = null, activePointers = 0;
+
+function attachTapHandler() {
+  canvas.addEventListener('pointerdown', e => {
+    activePointers++;
+    // A second finger means pinch/rotate, never a tap.
+    tapStart = activePointers > 1 ? null
+      : { x:e.clientX, y:e.clientY, t:performance.now(), id:e.pointerId };
+  });
+  canvas.addEventListener('pointerup', e => {
+    activePointers = Math.max(0, activePointers - 1);
+    const start = tapStart;
+    tapStart = null;
+    if (!start || start.id !== e.pointerId) return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_SLOP) return;
+    if (performance.now() - start.t > TAP_MAX_MS) return;
+    const rect = canvas.getBoundingClientRect();
+    onTap(e.clientX - rect.left, e.clientY - rect.top);
+  });
+  canvas.addEventListener('pointercancel', () => {
+    activePointers = Math.max(0, activePointers - 1);
+    tapStart = null;
+  });
+}
+
+function onTap(px, py) {
   if (isAITurn) return;
   const player = players[currentPlayerIndex];
   if (player?.isAI) return;
 
-  const pick = scene.pick(scene.pointerX, scene.pointerY);
+  const pick = scene.pick(px, py);
   if (!pick.hit) { deselectBee(); return; }
 
   const hit = pick.pickedMesh;
@@ -1584,6 +1706,15 @@ function onPointerDown(evt) {
   const key = hit.name?.startsWith('hex_') ? hit.name : null;
   if (key) hexMesh = hit;
   else hexMesh = hexMap.get(`${hit.metadata?.q},${hit.metadata?.r}`);
+
+  // Bee bodies are tiny targets on a phone, so a tap on the field counts as a
+  // tap on whoever stands there. An occupied hex is never a legal move target,
+  // so this can't steal a tap from anything else.
+  if (!beeMesh && hexMesh?.metadata) {
+    const occupant = bees.find(b => b.metadata.q === hexMesh.metadata.q &&
+                                    b.metadata.r === hexMesh.metadata.r);
+    if (occupant) beeMesh = occupant;
+  }
 
   // ── CAPTURE HOME mode ──
   if (actionMode==='CAPTURE_HOME' && hexMesh?.metadata) {
@@ -1962,6 +2093,13 @@ engine.runRenderLoop(() => {
 window.addEventListener('resize', () => engine.resize());
 
 document.addEventListener('keydown', e => {
+  if (activeScreen === 'screen-puzzle') {
+    if (HIVE_ARROWS[e.key]) { e.preventDefault(); hiveArrow(e.key); return; }
+    if (/^[0-9]$/.test(e.key)) { hivePlace(+e.key); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); hivePlace(0); return; }
+    if (e.code === 'Escape') { showScreen('screen-main'); return; }
+    return;
+  }
   if (e.code === 'Space') {
     e.preventDefault();
     if (playerHasMovedThisTurn && !isAITurn) nextTurn();
@@ -1976,6 +2114,714 @@ document.addEventListener('keydown', e => {
     }
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+//  HIVE PUZZLE ENGINE
+//  Rules (after Naoki Inaba's "Cut Block", hexagonalised as the
+//  "Cut Hive" puzzles of Paul Curzon / Teaching London Computing):
+//    1. The hive is cut into areas. An area of n cells holds 1..n,
+//       each exactly once.
+//    2. No two cells sharing an edge may hold the same number —
+//       across area borders too.
+//    3. Some cells are given. The solution must be unique AND
+//       reachable by pure deduction (no guessing).
+//  Axial coords, pointy-top, same convention as the game board:
+//    x = √3·(q + r/2),  y = 1.5·r
+// ══════════════════════════════════════════════════════════════════
+
+const HIVE_DIRS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+
+// ── seeded RNG (mulberry32) ───────────────────────────────────────
+function hiveRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hiveHash(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function hivePick(rng, arr) { return arr[(rng() * arr.length) | 0]; }
+function hiveShuffle(rng, arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+
+// ── hive from ASCII rows (odd-r offset → axial) ───────────────────
+// '#' is a cell, anything else is empty. Odd rows sit half a cell to
+// the right, exactly like a real honeycomb.
+function hiveFromRows(rows) {
+  const cells = [];
+  rows.forEach((row, r) => {
+    for (let col = 0; col < row.length; col++) {
+      if (row[col] !== '#') continue;
+      cells.push([col - ((r - (r & 1)) / 2), r]);
+    }
+  });
+  return hiveFromCells(cells);
+}
+
+function hiveFromCells(cells) {
+  const key = (q, r) => q + ',' + r;
+  const index = new Map();
+  cells.forEach((c, i) => index.set(key(c[0], c[1]), i));
+  const adj = cells.map(([q, r]) =>
+    HIVE_DIRS.map(d => index.get(key(q + d[0], r + d[1]))).filter(v => v !== undefined));
+  return { cells, adj, index, key, n: cells.length };
+}
+
+function hiveIsConnected(hive) {
+  if (!hive.n) return false;
+  const seen = new Uint8Array(hive.n); const stack = [0]; seen[0] = 1; let count = 1;
+  while (stack.length) {
+    const i = stack.pop();
+    for (const j of hive.adj[i]) if (!seen[j]) { seen[j] = 1; count++; stack.push(j); }
+  }
+  return count === hive.n;
+}
+
+// ── cutting the hive into areas ───────────────────────────────────
+// Grow blobs from the most enclosed unassigned cell outwards; that
+// ordering is what stops the walk from stranding single cells in
+// pockets, which would litter the puzzle with give-away 1s.
+function hiveCut(hive, rng, opts) {
+  const n = hive.n;
+  const area = new Array(n).fill(-1);
+  const sizes = [];
+  let remaining = n;
+
+  while (remaining > 0) {
+    let seeds = [], bestDeg = 99;
+    for (let i = 0; i < n; i++) {
+      if (area[i] !== -1) continue;
+      let deg = 0;
+      for (const j of hive.adj[i]) if (area[j] === -1) deg++;
+      if (deg < bestDeg) { bestDeg = deg; seeds = [i]; }
+      else if (deg === bestDeg) seeds.push(i);
+    }
+    const start = hivePick(rng, seeds);
+    const id = sizes.length;
+    const want = Math.min(hivePick(rng, opts.sizeBag), remaining);
+    const members = [start];
+    area[start] = id;
+
+    while (members.length < want) {
+      const frontier = [];
+      for (const i of members)
+        for (const j of hive.adj[i])
+          if (area[j] === -1 && frontier.indexOf(j) === -1) frontier.push(j);
+      if (!frontier.length) break;
+      // Prefer growing into cells that would otherwise be orphaned.
+      let bestF = [], bestFDeg = 99;
+      for (const j of frontier) {
+        let deg = 0;
+        for (const k of hive.adj[j]) if (area[k] === -1) deg++;
+        if (deg < bestFDeg) { bestFDeg = deg; bestF = [j]; }
+        else if (deg === bestFDeg) bestF.push(j);
+      }
+      const pool = rng() < 0.6 ? bestF : frontier;
+      const pick = hivePick(rng, pool);
+      area[pick] = id; members.push(pick);
+    }
+    sizes.push(members.length);
+    remaining -= members.length;
+  }
+
+  hiveMergeSingles(hive, area, sizes, opts.maxArea);
+  return hiveCompact(hive, area, sizes);
+}
+
+// A one-cell area is a free "1" — the most on-the-nose thing a hive
+// can contain. Fold them into a neighbour whenever there is room.
+function hiveMergeSingles(hive, area, sizes, maxArea) {
+  for (let i = 0; i < hive.n; i++) {
+    const id = area[i];
+    if (sizes[id] !== 1) continue;
+    let target = -1, targetSize = 99;
+    for (const j of hive.adj[i]) {
+      const oid = area[j];
+      if (oid === id) continue;
+      // one over the usual ceiling is still a fair area, and far better
+      // than leaving a lone cell that can only ever be a 1
+      if (sizes[oid] + 1 > maxArea + 1) continue;
+      if (sizes[oid] < targetSize) { targetSize = sizes[oid]; target = oid; }
+    }
+    if (target === -1) continue;
+    area[i] = target; sizes[target]++; sizes[id] = 0;
+  }
+}
+
+function hiveCompact(hive, area, sizes) {
+  const map = new Map();
+  const outSizes = [];
+  const outArea = area.map(id => {
+    if (!map.has(id)) { map.set(id, outSizes.length); outSizes.push(sizes[id]); }
+    return map.get(id);
+  });
+  return { area: outArea, sizes: outSizes };
+}
+
+// ── exhaustive solver (counts solutions, capped) ──────────────────
+// maxNodes caps the search: proving that a bad cut has *no* filling can
+// cost more than simply trying another cut, so the generator gives up
+// early and moves on. Uncapped when maxNodes is omitted.
+function hiveSolve(hive, cut, givens, limit, maxNodes) {
+  const n = hive.n;
+  let nodes = 0, aborted = false;
+  const val = givens.slice();
+  const used = cut.sizes.map(() => 0);
+  for (let i = 0; i < n; i++) if (val[i]) {
+    const bit = 1 << val[i];
+    if (used[cut.area[i]] & bit) return { count: 0 };
+    used[cut.area[i]] |= bit;
+    for (const j of hive.adj[i]) if (val[j] === val[i]) return { count: 0 };
+  }
+  let count = 0, first = null;
+
+  function candidates(i) {
+    const size = cut.sizes[cut.area[i]];
+    const out = [];
+    for (let v = 1; v <= size; v++) {
+      if (used[cut.area[i]] & (1 << v)) continue;
+      let ok = true;
+      for (const j of hive.adj[i]) if (val[j] === v) { ok = false; break; }
+      if (ok) out.push(v);
+    }
+    return out;
+  }
+
+  function step() {
+    if (maxNodes && ++nodes > maxNodes) { aborted = true; return; }
+    let target = -1, best = null;
+    for (let i = 0; i < n; i++) {
+      if (val[i]) continue;
+      const c = candidates(i);
+      if (!best || c.length < best.length) { best = c; target = i; if (!c.length) break; }
+    }
+    if (target === -1) { count++; if (!first) first = val.slice(); return; }
+    for (const v of best) {
+      val[target] = v; used[cut.area[target]] |= (1 << v);
+      step();
+      val[target] = 0; used[cut.area[target]] &= ~(1 << v);
+      if (count >= limit || aborted) return;
+    }
+  }
+  step();
+  return { count, solution: first, aborted };
+}
+
+// ── deductive solver ──────────────────────────────────────────────
+// Tiered so the generator can measure how deep a puzzle really goes.
+//   1 naked single      2 hidden single in an area
+//   3 naked pair/triple  4 area-value pointing at an outside cell
+const HIVE_TIER_NAMES = ['', 'Gentle', 'Steady', 'Sharp', 'Devious'];
+
+function hiveDeduce(hive, cut, givens, maxTier) {
+  const n = hive.n;
+  const cand = new Array(n);
+  const val = givens.slice();
+  const areaCells = cut.sizes.map(() => []);
+  for (let i = 0; i < n; i++) areaCells[cut.area[i]].push(i);
+  for (let i = 0; i < n; i++) {
+    let m = 0;
+    for (let v = 1; v <= cut.sizes[cut.area[i]]; v++) m |= 1 << v;
+    cand[i] = m;
+  }
+  let deepest = 0;
+
+  const bitsOf = m => { const o = []; for (let v = 1; v <= 8; v++) if (m & (1 << v)) o.push(v); return o; };
+  const popcount = m => { let c = 0; while (m) { m &= m - 1; c++; } return c; };
+
+  function assign(i, v) {
+    val[i] = v; cand[i] = 1 << v;
+    for (const j of hive.adj[i]) if (!val[j]) cand[j] &= ~(1 << v);
+    for (const j of areaCells[cut.area[i]]) if (j !== i && !val[j]) cand[j] &= ~(1 << v);
+  }
+
+  for (let i = 0; i < n; i++) if (val[i]) { const v = val[i]; val[i] = 0; assign(i, v); }
+
+  for (;;) {
+    // dead end?
+    for (let i = 0; i < n; i++) if (!val[i] && !cand[i]) return { solved: false, tier: deepest, val };
+
+    // tier 1 — naked single
+    let moved = false;
+    for (let i = 0; i < n; i++) {
+      if (val[i] || popcount(cand[i]) !== 1) continue;
+      assign(i, bitsOf(cand[i])[0]); deepest = Math.max(deepest, 1); moved = true;
+    }
+    if (moved) continue;
+
+    // tier 2 — hidden single inside an area
+    if (maxTier >= 2) {
+      for (let a = 0; a < cut.sizes.length && !moved; a++) {
+        for (let v = 1; v <= cut.sizes[a]; v++) {
+          let spot = -1, count = 0;
+          for (const i of areaCells[a]) {
+            if (val[i] === v) { count = -1; break; }
+            if (!val[i] && (cand[i] & (1 << v))) { spot = i; count++; }
+          }
+          if (count === 1) { assign(spot, v); deepest = Math.max(deepest, 2); moved = true; break; }
+          if (count === 0) return { solved: false, tier: deepest, val };
+        }
+      }
+      if (moved) continue;
+    }
+
+    // tier 3 — naked pair / triple inside an area
+    if (maxTier >= 3) {
+      for (let a = 0; a < cut.sizes.length && !moved; a++) {
+        const open = areaCells[a].filter(i => !val[i]);
+        for (let s = 2; s <= 3 && !moved; s++) {
+          for (let x = 0; x < open.length && !moved; x++) {
+            const group = [open[x]];
+            let mask = cand[open[x]];
+            for (let y = x + 1; y < open.length; y++) {
+              if (popcount(mask | cand[open[y]]) <= s) { group.push(open[y]); mask |= cand[open[y]]; }
+            }
+            if (group.length !== s || popcount(mask) !== s) continue;
+            for (const i of open) {
+              if (group.indexOf(i) !== -1) continue;
+              if (cand[i] & mask) { cand[i] &= ~mask; deepest = Math.max(deepest, 3); moved = true; }
+            }
+          }
+        }
+      }
+      if (moved) continue;
+    }
+
+    // tier 4 — every home for value v in this area touches cell x,
+    //          so x cannot be v
+    if (maxTier >= 4) {
+      for (let a = 0; a < cut.sizes.length && !moved; a++) {
+        for (let v = 1; v <= cut.sizes[a] && !moved; v++) {
+          const spots = areaCells[a].filter(i => !val[i] && (cand[i] & (1 << v)));
+          if (!spots.length || areaCells[a].some(i => val[i] === v)) continue;
+          let shared = null;
+          for (const i of spots) {
+            const nb = new Set(hive.adj[i]);
+            shared = shared === null ? nb : new Set([...shared].filter(x => nb.has(x)));
+            if (!shared.size) break;
+          }
+          if (!shared) continue;
+          for (const x of shared) {
+            if (val[x] || !(cand[x] & (1 << v))) continue;
+            cand[x] &= ~(1 << v); deepest = Math.max(deepest, 4); moved = true;
+          }
+        }
+      }
+      if (moved) continue;
+    }
+
+    break;
+  }
+
+  const solved = val.every(v => v > 0);
+  return { solved, tier: deepest, val };
+}
+
+// ── puzzle generation ─────────────────────────────────────────────
+function hiveMakePuzzle(hive, seed, opts) {
+  opts = Object.assign({
+    maxArea: 4,
+    // Areas of two force {1,2} on both cells; a hive packed with them
+    // usually has no filling at all, so keep threes and fours.
+    sizeBag: [3, 3, 4, 4, 4],
+    maxTier: 3,
+    // No wall-clock budget anywhere in here: generation has to be a pure
+    // function of the seed, or a slow phone and a fast desktop would hand
+    // their players different puzzles on the same day — and a reload
+    // would no longer match the progress saved against the old clues.
+    attempts: 40,
+    maxNodes: 4000
+  }, opts || {});
+
+  const rng = hiveRng(seed);
+  let best = null;
+
+  for (let attempt = 0; attempt < opts.attempts; attempt++) {
+    const cut = hiveCut(hive, rng, opts);
+    const full = hiveSolve(hive, cut, new Array(hive.n).fill(0), 1, opts.maxNodes);
+    if (!full.count) continue;                      // no filling, or too slow to prove one
+    const solution = full.solution;
+
+    // Peel clues away for as long as pure deduction still gets there.
+    const givens = solution.slice();
+    for (const i of hiveShuffle(rng, solution.map((_, k) => k))) {
+      const keep = givens[i];
+      givens[i] = 0;
+      if (!hiveDeduce(hive, cut, givens, opts.maxTier).solved) givens[i] = keep;
+    }
+
+    // Rate it by the gentlest reasoning that still cracks it.
+    let rating = opts.maxTier;
+    for (let t = 1; t <= opts.maxTier; t++)
+      if (hiveDeduce(hive, cut, givens, t).solved) { rating = t; break; }
+
+    const puzzle = {
+      cells: hive.cells, area: cut.area, sizes: cut.sizes,
+      solution, givens, rating,
+      clues: givens.filter(v => v).length
+    };
+    puzzle.score = hiveScore(hive, puzzle);
+    if (!best || puzzle.score > best.score) best = puzzle;
+  }
+  return best;
+}
+
+// How intriguing is this puzzle? Rewards depth of reasoning and a
+// sparse, well-spread set of clues; punishes give-aways.
+function hiveScore(hive, p) {
+  const n = hive.n;
+  let s = 0;
+  s += [0, 0, 12, 22, 28][p.rating] || 0;           // depth of deduction
+  const density = p.clues / n;
+  s += Math.max(0, 26 - Math.abs(density - 0.18) * 130); // sparse but fair
+  s -= p.sizes.filter(z => z === 1).length * 12;    // free 1s
+  s -= p.sizes.filter(z => z === 2).length * 1.5;   // pairs are nearly free
+
+  const variety = new Set(p.sizes).size;
+  s += variety * 3;
+
+  // clues bunched in one area, or an area handed over wholesale, is dull
+  const perArea = p.sizes.map(() => 0);
+  p.givens.forEach((v, i) => { if (v) perArea[p.area[i]]++; });
+  perArea.forEach((c, a) => { if (c >= p.sizes[a]) s -= 14; else if (c > 1) s -= 4 * (c - 1); });
+
+  // reward clues that sit apart from one another
+  const clueIdx = [];
+  p.givens.forEach((v, i) => { if (v) clueIdx.push(i); });
+  if (clueIdx.length > 1) {
+    let near = 0;
+    for (let x = 0; x < clueIdx.length; x++)
+      for (const j of hive.adj[clueIdx[x]]) if (p.givens[j]) near++;
+    s -= near * 2.5;
+  }
+  return s;
+}
+
+// ── the seven hives ───────────────────────────────────────────────
+// Authored as honeycomb rows: odd rows sit half a cell right.
+const HIVE_SHAPES = [
+  // a fat drop of nectar running off the comb
+  { id: 'dewdrop', name: 'Dewdrop', size: 'small', rows:
+    ['.##', '###', '.##', '..#', '...#', '...#'] },
+  // two combs, one narrow bridge
+  { id: 'twin-combs', name: 'Twin Combs', size: 'small', rows:
+    ['##....##', '########', '.#.....#'] },
+  // the pristine one — a perfect hexagon
+  { id: 'queens-cell', name: "Queen's Cell", size: 'middle', rows:
+    ['.###', '####', '#####', '####', '.###'] },
+  // a triangle of comb
+  { id: 'the-swarm', name: 'The Swarm', size: 'middle', rows:
+    ['######', '#####', '####', '###', '##', '#'] },
+  // three hives at the corners of a triangle, ringed by bridges
+  { id: 'three-hives', name: 'Three Hives', size: 'middle', rows:
+    ['...##', '...##', '...##', '..#.#', '..#..#', '.#...#', '##....##', '########', '.#.....#'] },
+  // hexagon with six spikes
+  { id: 'nectar-star', name: 'Nectar Star', size: 'large', rows:
+    ['..#...#', '..#..#', '...###', '..####', '#########', '..####', '...###', '..#..#', '..#...#'] },
+  // free-form comb with an arm
+  { id: 'the-sprawl', name: 'The Sprawl', size: 'large', rows:
+    ['..#####', '.######', '.#########', '.####', '.####', '####', '..##'] }
+];
+
+// ══════════════════════════════════════════════════════════════════
+//  DAILY HIVE PUZZLE — UI
+// ══════════════════════════════════════════════════════════════════
+const HIVE_SAVE_KEY = 'nectarHive';
+let hivePuzzle = null, hiveHiveGraph = null, hiveEntries = [], hiveSel = -1;
+let hiveSolvedToday = false, hiveStreak = 0, hiveToday = null;
+// 'daily' is the one that feeds the streak; 'practice' hives are extra
+// rounds from Play Again and are deliberately weightless.
+let hiveMode = 'daily', hiveDaily = null;
+
+function hiveDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function hiveDayNumber(d) {
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+function hiveLoadSave() {
+  try { return JSON.parse(localStorage.getItem(HIVE_SAVE_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function hiveWriteSave(patch) {
+  const save = Object.assign(hiveLoadSave(), patch);
+  try { localStorage.setItem(HIVE_SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+  return save;
+}
+
+function openHivePuzzle() {
+  const now = new Date();
+  const dayNo = hiveDayNumber(now);
+  const key = hiveDateKey(now);
+  const shape = HIVE_SHAPES[((dayNo % HIVE_SHAPES.length) + HIVE_SHAPES.length) % HIVE_SHAPES.length];
+  const save = hiveLoadSave();
+
+  if (!hiveDaily || hiveDaily.key !== key) {
+    const graph = hiveFromRows(shape.rows);
+    // Seeded by the date, so every player gets the same hive today and
+    // the same one again after a reload.
+    let puzzle = null;
+    for (let t = 0; t < 4 && !puzzle; t++)
+      puzzle = hiveMakePuzzle(graph, hiveHash(shape.id + '|' + key + (t ? '#' + t : '')), {});
+    if (!puzzle) { setActionHint('The hive would not cut today — try again later'); return; }
+    const entries = (save.date === key && Array.isArray(save.entries) &&
+                     save.entries.length === graph.n)
+      ? save.entries.slice() : puzzle.givens.slice();
+    puzzle.givens.forEach((v, i) => { if (v) entries[i] = v; });   // clues always stand
+    hiveDaily = { key, dayNo, shape, graph, puzzle, entries,
+                  solved: save.date === key && !!save.solved };
+  }
+
+  // Coming back from a practice hive puts today's board back on screen.
+  hiveMode = 'daily';
+  hiveToday = hiveDaily;
+  hiveHiveGraph = hiveDaily.graph;
+  hivePuzzle = hiveDaily.puzzle;
+  hiveEntries = hiveDaily.entries;
+  hiveSolvedToday = hiveDaily.solved;
+  hiveStreak = save.streak || 0;
+  hiveSel = -1;
+  hiveRender();
+  showScreen('screen-puzzle');
+  // finished it but never saw the fanfare (closed the tab on the last move)
+  if (!hiveSolvedToday && hiveIsComplete()) hiveWin();
+}
+
+// Play Again — a fresh hive on the spot. Random shape, random seed, no
+// bearing on the streak, so the daily stays the thing you come back for.
+function hivePlayAgain() {
+  let shape = null, graph = null, puzzle = null;
+  for (let t = 0; t < 8 && !puzzle; t++) {
+    shape = HIVE_SHAPES[(Math.random() * HIVE_SHAPES.length) | 0];
+    graph = hiveFromRows(shape.rows);
+    puzzle = hiveMakePuzzle(graph, (Math.random() * 4294967296) >>> 0, {});
+  }
+  if (!puzzle) return;
+  hiveMode = 'practice';
+  hiveHiveGraph = graph;
+  hivePuzzle = puzzle;
+  hiveEntries = puzzle.givens.slice();
+  hiveToday = { key: hiveDaily ? hiveDaily.key : '', shape };
+  hiveSolvedToday = false;
+  hiveSel = -1;
+  document.getElementById('hive-done').classList.add('hidden');
+  hiveRender();
+}
+
+// ── geometry ──────────────────────────────────────────────────────
+// Same axial convention as the board: x = √3·(q + r/2), y = 1.5·r
+const HIVE_R = 10;                     // svg units, centre → vertex
+function hiveCellCentre(q, r) {
+  return { x: HIVE_R * Math.sqrt(3) * (q + r / 2), y: HIVE_R * 1.5 * r };
+}
+function hiveCorners(cx, cy) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i - 30);
+    pts.push([cx + HIVE_R * Math.cos(a), cy + HIVE_R * Math.sin(a)]);
+  }
+  return pts;
+}
+
+// Which cells break a rule right now: a repeat inside their own comb,
+// or the same number in a touching cell.
+function hiveConflicts() {
+  const bad = new Set();
+  const hive = hiveHiveGraph, p = hivePuzzle;
+  const seen = p.sizes.map(() => ({}));
+  hiveEntries.forEach((v, i) => {
+    if (!v) return;
+    const a = p.area[i];
+    if (seen[a][v] !== undefined) { bad.add(i); bad.add(seen[a][v]); }
+    else seen[a][v] = i;
+    for (const j of hive.adj[i]) if (hiveEntries[j] === v) { bad.add(i); bad.add(j); }
+  });
+  return bad;
+}
+
+function hiveIsComplete() {
+  return hiveEntries.every(v => v > 0) && hiveConflicts().size === 0;
+}
+
+// ── rendering ─────────────────────────────────────────────────────
+function hiveRender() {
+  const svg = document.getElementById('hive-board');
+  const hive = hiveHiveGraph, p = hivePuzzle;
+  if (!svg || !p) return;
+  const bad = hiveConflicts();
+  const maxArea = Math.max.apply(null, p.sizes);
+
+  const centres = hive.cells.map(c => hiveCellCentre(c[0], c[1]));
+  const xs = [], ys = [];
+  centres.forEach(c => { xs.push(c.x - HIVE_R, c.x + HIVE_R); ys.push(c.y - HIVE_R, c.y + HIVE_R); });
+  const pad = 5;
+  const minX = Math.min.apply(null, xs) - pad, maxX = Math.max.apply(null, xs) + pad;
+  const minY = Math.min.apply(null, ys) - pad, maxY = Math.max.apply(null, ys) + pad;
+  svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+
+  let cells = '', cuts = '', nums = '';
+  hive.cells.forEach((c, i) => {
+    const { x, y } = centres[i];
+    const pts = hiveCorners(x, y);
+    const cls = ['hive-cell'];
+    if (i === hiveSel) cls.push('sel');
+    else if (hiveSel >= 0 && p.area[i] === p.area[hiveSel]) cls.push('peer');
+    if (p.givens[i]) cls.push('given');
+    cells += `<polygon class="${cls.join(' ')}" data-i="${i}" points="${pts.map(pt => pt[0].toFixed(2) + ',' + pt[1].toFixed(2)).join(' ')}"/>`;
+
+    // A thick rim wherever the comb ends — that is the "cut" of a cut hive.
+    HIVE_DIRS.forEach((d, k) => {
+      const j = hive.index.get(hive.key(c[0] + d[0], c[1] + d[1]));
+      if (j !== undefined && p.area[j] === p.area[i]) return;
+      if (j !== undefined && j < i) return;             // draw shared rims once
+      const a = pts[(6 - k) % 6], b = pts[(7 - k) % 6];
+      cuts += `<line class="hive-cut" x1="${a[0].toFixed(2)}" y1="${a[1].toFixed(2)}" x2="${b[0].toFixed(2)}" y2="${b[1].toFixed(2)}"/>`;
+    });
+
+    const v = hiveEntries[i];
+    if (v) {
+      const ncls = 'hive-num' + (p.givens[i] ? ' given' : '') + (bad.has(i) ? ' bad' : '');
+      nums += `<text class="${ncls}" x="${x.toFixed(2)}" y="${(y + 0.5).toFixed(2)}">${v}</text>`;
+    }
+  });
+  svg.innerHTML = cells + cuts + nums;
+  svg.querySelectorAll('.hive-cell').forEach(el =>
+    el.addEventListener('click', () => hiveTapCell(+el.dataset.i)));
+
+  // number pad
+  const pad2 = document.getElementById('hive-pad');
+  let html = '';
+  for (let v = 1; v <= maxArea; v++) html += `<button class="hive-key" data-v="${v}">${v}</button>`;
+  html += '<button class="hive-key erase" data-v="0">✕</button>';
+  pad2.innerHTML = html;
+  pad2.querySelectorAll('.hive-key').forEach(el =>
+    el.addEventListener('click', () => hivePlace(+el.dataset.v)));
+
+  // header
+  const sizeWord = { small: 'Small', middle: 'Middle', large: 'Large' }[hiveToday.shape.size];
+  document.getElementById('hive-sub').textContent =
+    hiveToday.shape.name + ' · ' + sizeWord + ' · ' + (HIVE_TIER_NAMES[p.rating] || 'Steady');
+  document.getElementById('hive-date').textContent =
+    hiveMode === 'practice' ? 'Practice hive' : hiveToday.key;
+  const streakEl = document.getElementById('hive-streak');
+  streakEl.textContent = hiveStreak > 0 ? hiveStreak + ' day streak' : '';
+
+  const left = hiveEntries.filter(v => !v).length;
+  const status = document.getElementById('hive-status');
+  if (hiveSolvedToday && hiveMode === 'practice') status.textContent = 'Solved';
+  else if (hiveSolvedToday) status.textContent = 'Solved — come back tomorrow';
+  else if (bad.size) status.textContent = bad.size + ' cell' + (bad.size === 1 ? '' : 's') + ' clash';
+  else if (left) status.textContent = left + ' cell' + (left === 1 ? '' : 's') + ' to fill';
+  else status.textContent = '';
+
+  document.getElementById('hive-done').classList.toggle('hidden', !hiveSolvedToday);
+}
+
+function hiveTapCell(i) {
+  if (hiveSolvedToday) return;
+  if (hivePuzzle.givens[i]) { hiveSel = -1; hiveRender(); return; }
+  hiveSel = (hiveSel === i) ? -1 : i;
+  hiveRender();
+}
+
+function hivePlace(v) {
+  if (hiveSolvedToday || hiveSel < 0) return;
+  if (hivePuzzle.givens[hiveSel]) return;     // a clue is a clue
+  const size = hivePuzzle.sizes[hivePuzzle.area[hiveSel]];
+  if (v > size) return;                       // this comb has no such number
+  hiveEntries[hiveSel] = (hiveEntries[hiveSel] === v) ? 0 : v;
+  if (hiveEntries[hiveSel]) hiveSel = hiveNextEmpty(hiveSel);
+  hiveAfterMove();
+}
+
+function hiveNextEmpty(from) {
+  for (let k = 1; k <= hiveEntries.length; k++) {
+    const i = (from + k) % hiveEntries.length;
+    if (!hiveEntries[i] && !hivePuzzle.givens[i]) return i;
+  }
+  return -1;
+}
+
+function hiveAfterMove() {
+  if (hiveIsComplete() && !hiveSolvedToday) hiveWin();
+  else { hiveStash(false); hiveRender(); }
+}
+
+// Only the daily board is worth remembering; a practice hive lives and
+// dies with the screen.
+function hiveStash(solved) {
+  if (hiveMode !== 'daily') return;
+  hiveDaily.entries = hiveEntries;
+  hiveDaily.solved = solved;
+  hiveWriteSave({ date: hiveToday.key, entries: hiveEntries, solved });
+}
+
+function hiveWin() {
+  hiveSolvedToday = true;
+  hiveSel = -1;
+  const practice = hiveMode === 'practice';
+  if (!practice) {
+    const save = hiveLoadSave();
+    const yesterday = hiveDateKey(new Date(Date.now() - 86400000));
+    hiveStreak = (save.lastSolved === yesterday ? (save.streak || 0) : 0) + 1;
+    hiveStash(true);
+    hiveWriteSave({ lastSolved: hiveToday.key, streak: hiveStreak,
+                    best: Math.max(hiveStreak, save.best || 0) });
+  }
+  hiveRender();
+  document.getElementById('hive-done-streak').textContent = practice
+    ? 'Practice hive · streak untouched'
+    : (hiveStreak > 1 ? hiveStreak + ' days in a row' : 'First day of your streak');
+  document.getElementById('hive-done').classList.remove('hidden');
+}
+
+function hiveClear() {
+  if (hiveSolvedToday) return;
+  hiveEntries = hivePuzzle.givens.slice();
+  hiveSel = -1;
+  hiveStash(false);
+  hiveRender();
+}
+
+// ── keyboard steering ─────────────────────────────────────────────
+// A hex has no cell straight up or down, so an arrow key walks to the
+// nearest cell within a cone around that heading — which also hops the
+// gaps in a spiked or bridged hive instead of dead-ending.
+const HIVE_ARROWS = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+function hiveArrow(key) {
+  const d = HIVE_ARROWS[key];
+  if (!d || hiveSolvedToday || !hivePuzzle) return;
+  if (hiveSel < 0) {
+    hiveSel = hiveEntries.findIndex((v, i) => !hivePuzzle.givens[i]);
+    hiveRender();
+    return;
+  }
+  const from = hiveCellCentre(hiveHiveGraph.cells[hiveSel][0], hiveHiveGraph.cells[hiveSel][1]);
+  let best = -1, bestScore = Infinity;
+  hiveHiveGraph.cells.forEach((c, i) => {
+    if (i === hiveSel || hivePuzzle.givens[i]) return;   // clues need no cursor
+    const p = hiveCellCentre(c[0], c[1]);
+    const along = (p.x - from.x) * d[0] + (p.y - from.y) * d[1];
+    if (along <= 0.5) return;                            // behind us
+    const off = Math.abs((p.x - from.x) * -d[1] + (p.y - from.y) * d[0]);
+    if (off > along * 1.2) return;                       // outside the cone
+    const score = along + off * 3;                       // nearest and straightest
+    if (score < bestScore) { bestScore = score; best = i; }
+  });
+  if (best >= 0) { hiveSel = best; hiveRender(); }
+}
 
 // ── DEMO: skip the menus and drop straight into a game vs 2 AI opponents ──
 gameConfig.playerCount = 3;
