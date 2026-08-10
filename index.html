@@ -274,6 +274,7 @@ body.mobile .hive-done p{font-size:12px}
   <div class="game-title">NECTAR</div>
   <div class="game-subtitle">Sting or get stung</div>
   <div class="forest-divider"></div>
+  <button class="menu-btn" id="resume-btn" style="display:none" onclick="resumeGame()">Resume Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')">Play Game</button>
   <button class="menu-btn" onclick="openHivePuzzle()">Daily Hive</button>
   <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
@@ -461,6 +462,7 @@ body.mobile .hive-done p{font-size:12px}
     <h2>Paused</h2>
     <div class="score-list" id="pause-scores"></div>
     <button class="menu-btn" onclick="togglePause()" style="width:100%;margin-bottom:10px">Resume</button>
+    <button class="menu-btn" onclick="exitToMenu()" style="width:100%;margin-bottom:10px;font-size:11px">Menu</button>
     <button class="menu-btn danger" onclick="location.reload()" style="width:100%;font-size:11px">End Game</button>
   </div>
 </div>
@@ -535,6 +537,23 @@ function showScreen(id) {
   activeScreen = id;
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
   if (id) document.getElementById(id).classList.remove('hidden');
+  // The board keeps its state behind the menu, so offer the way back in.
+  const resume = document.getElementById('resume-btn');
+  if (resume) resume.style.display = (id === 'screen-main' && gameStarted) ? '' : 'none';
+  // and keep the game's HUD from bleeding through a menu
+  const hud = document.getElementById('hud');
+  if (hud && gameStarted) hud.classList.toggle('hidden', id !== null);
+}
+
+// Leaving a game for the menu — the match stays exactly where it was.
+function exitToMenu() {
+  document.getElementById('pause-modal').classList.remove('visible');
+  showScreen('screen-main');
+}
+
+function resumeGame() {
+  showScreen(null);
+  document.getElementById('hud').classList.remove('hidden');
 }
 
 // Frames the whole board on a phone screen: portrait is limited by the board's

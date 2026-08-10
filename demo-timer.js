@@ -231,8 +231,8 @@ function addPermanentTimer() {
     document.body.appendChild(timer);
     
     timer.addEventListener('click', handleTimerClick);
-    
-    setInterval(() => updateTimerContent(timer), 1000);
+
+    setInterval(() => { tickPauseCredit(); updateTimerContent(timer); }, 1000);
 }
 
 function updateTimerContent(timer) {
@@ -262,13 +262,76 @@ function handleTimerClick() {
     showSubscriptionPopup();
 }
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'r' || e.key === 'R') {
-        if (getRemainingTime() > 0) {
-            resetDemoTimer();
-        }
-    }
-});
+// Resetting the clock used to be a keypress away — any player who leant on
+// R got an endless demo. It now takes ?resetdemo=1 in the URL, which keeps
+// it available for testing without handing it to everyone.
+if (typeof location !== 'undefined' && /[?&]resetdemo=1/.test(location.search)) {
+    resetDemoTimer();
+}
+
+// ── the Daily Hive is not demo time ───────────────────────────────
+// The puzzle is the reason to come back tomorrow, so it must not be
+// possible to get locked out of it halfway through. While the puzzle
+// screen is up the countdown holds; it resumes on the way back to the
+// game. Wrapping showScreen keeps every bit of this demo-only, so the
+// two builds' index.html stay identical.
+function savePauseState() {
+    localStorage.setItem('demoPauseState', JSON.stringify({
+        isPaused, pauseStartTime, accumulatedPauseTime
+    }));
+}
+
+function pauseDemoTimer() {
+    if (isPaused) return;
+    isPaused = true;
+    pauseStartTime = Date.now();
+    savePauseState();
+}
+
+function resumeDemoTimer() {
+    if (!isPaused) return;
+    accumulatedPauseTime += Date.now() - pauseStartTime;
+    isPaused = false;
+    pauseStartTime = null;
+    savePauseState();
+}
+
+// Bank the held time every second rather than only on resume, so a tab
+// closed on the puzzle screen accrues nothing while it is shut.
+function tickPauseCredit() {
+    if (!isPaused) return;
+    const now = Date.now();
+    accumulatedPauseTime += now - pauseStartTime;
+    pauseStartTime = now;
+    savePauseState();
+}
+
+// The menu is reachable from the demo now, and on a narrow screen its
+// copyright line sits exactly where the timer chip does.
+function liftMenuFootnote() {
+    if (document.getElementById('demo-footnote-fix')) return;
+    const style = document.createElement('style');
+    style.id = 'demo-footnote-fix';
+    style.textContent = '@media (max-width:520px){.copyright{bottom:66px}}';
+    document.head.appendChild(style);
+}
+
+function hookPuzzleScreen() {
+    if (typeof window.showScreen !== 'function' || window.showScreen.__demoWrapped) return false;
+    const inner = window.showScreen;
+    const wrapped = function (id) {
+        inner(id);
+        if (id === 'screen-puzzle') pauseDemoTimer(); else resumeDemoTimer();
+    };
+    wrapped.__demoWrapped = true;
+    window.showScreen = wrapped;
+    return true;
+}
+
+// A tab closed mid-puzzle leaves a stale hold in storage; we always boot
+// on the board, so clear it rather than let it run for free.
+loadPauseState();
+if (isPaused) { isPaused = false; pauseStartTime = null; savePauseState(); }
 
 function showMenuDemoStatus() {
     const header = document.querySelector('.main-header');
@@ -397,6 +460,8 @@ initDemo();
 if (typeof window !== 'undefined') {
     window.addEventListener('DOMContentLoaded', () => {
         addPermanentTimer();
+        hookPuzzleScreen();
+        liftMenuFootnote();
         if (!checkAndShowOverlay()) {
             startExpirationChecker();
         }
@@ -406,6 +471,8 @@ if (typeof window !== 'undefined') {
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(() => {
         addPermanentTimer();
+        hookPuzzleScreen();
+        liftMenuFootnote();
         checkAndShowOverlay();
     }, 100);
 }
