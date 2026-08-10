@@ -2842,16 +2842,8 @@ function hiveArrow(key) {
   if (best >= 0) { hiveSel = best; hiveRender(); }
 }
 
-// ── DEMO: skip the menus and drop straight into a game vs 2 AI opponents ──
-gameConfig.playerCount = 3;
-gameConfig.playerNames = ['You', 'Bombus', 'Apis'];
-gameConfig.isAI       = [false, true, true];
-showScreen(null);
-document.getElementById('hud').classList.remove('hidden');
-buildBoard(false);
-initGame();
-gameStarted = true;
-maybeShowHowTo();
+// Start at main menu
+showScreen('screen-main');
 </script>
 <script src="demo-timer.js"></script>
 </body>
