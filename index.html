@@ -208,7 +208,7 @@ body.mobile .hive-key{width:44px;height:44px;font-size:15px}
 body.mobile .hive-actions .menu-btn{width:auto;max-width:none;min-width:132px}
 body.mobile .hive-done p{font-size:12px}
 
-/* ── daily hive puzzle ─────────────────────────────────────────── */
+/* ── hive puzzle ───────────────────────────────────────────────── */
 #screen-puzzle{justify-content:flex-start;padding:20px 16px 12px;overflow-y:auto}
 .hive-title{font-family:'Cinzel',serif;font-size:clamp(26px,4vw,42px);font-weight:900;letter-spacing:10px;text-indent:10px;color:#d4a84b;text-shadow:0 0 40px rgba(212,168,75,0.35)}
 .hive-sub{font-family:'Cinzel',serif;font-size:11px;letter-spacing:4px;text-indent:4px;color:rgba(212,168,75,0.6);text-transform:uppercase;margin-top:6px}
@@ -276,7 +276,7 @@ body.mobile .hive-done p{font-size:12px}
   <div class="forest-divider"></div>
   <button class="menu-btn" id="resume-btn" style="display:none" onclick="resumeGame()">Resume Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')">Play Game</button>
-  <button class="menu-btn" onclick="openHivePuzzle()">Daily Hive</button>
+  <button class="menu-btn" onclick="openHivePuzzle()">Hive Puzzle</button>
   <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
   <button class="menu-btn" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
   <div class="copyright">© 2021–2026 Simon Allmer Entertainment</div>
@@ -398,9 +398,9 @@ body.mobile .hive-done p{font-size:12px}
   <div id="action-hint"></div>
 </div>
 
-<!-- DAILY HIVE PUZZLE -->
+<!-- HIVE PUZZLE -->
 <div id="screen-puzzle" class="screen hidden">
-  <div class="hive-title">DAILY HIVE</div>
+  <div class="hive-title">HIVE PUZZLE</div>
   <div class="hive-sub" id="hive-sub">&mdash;</div>
   <div class="hive-line"><span id="hive-date"></span><span id="hive-streak"></span></div>
   <div class="hive-rules">
@@ -416,8 +416,7 @@ body.mobile .hive-done p{font-size:12px}
     <button class="menu-btn" onclick="showScreen('screen-main')">Back</button>
   </div>
   <div class="hive-credit">
-    Cut Hive puzzles created by <strong>Paul Curzon</strong>, Queen Mary University of London,
-    inspired by the Cut Block puzzles of <strong>Naoki Inaba</strong> &middot; adapted by Simon Allmer
+    Inspired by the Cut Block puzzles of <strong>Naoki Inaba</strong>
   </div>
   <div class="hive-done hidden" id="hive-done">
     <h2>HIVE COMPLETE</h2>
@@ -492,15 +491,27 @@ const IS_MOBILE = (function() {
 })();
 if (IS_MOBILE) document.body.classList.add('mobile');
 
-const PLAYER_COLORS_HEX = ['#c0392b','#2980b9','#27ae60','#f39c12','#8e44ad','#16a085'];
+// Ordered so the first four players get the four furthest-apart hues. The muted
+// versions of these washed out against the dark forest, so they run bright and
+// saturated. Slot 6 was teal, then cyan — both sat too close to the blue of
+// slot 2 — so it is the classic bee yellow instead.
+const PLAYER_COLORS_HEX = ['#ff3b30','#2b8cff','#3ddc61','#f2ece0','#b45cff','#ffe61a'];
 const PLAYER_COLORS_BJS = [
-  new BABYLON.Color3(0.75,0.22,0.17),
-  new BABYLON.Color3(0.16,0.50,0.73),
-  new BABYLON.Color3(0.15,0.68,0.38),
-  new BABYLON.Color3(0.95,0.61,0.07),
-  new BABYLON.Color3(0.56,0.27,0.68),
-  new BABYLON.Color3(0.09,0.63,0.52)
+  new BABYLON.Color3(1.00,0.23,0.19),
+  new BABYLON.Color3(0.17,0.55,1.00),
+  new BABYLON.Color3(0.24,0.86,0.38),
+  new BABYLON.Color3(0.95,0.93,0.88),
+  new BABYLON.Color3(0.71,0.36,1.00),
+  new BABYLON.Color3(1.00,0.90,0.10)   // lemon, not amber — the 2-nectar token is amber
 ];
+
+// A bee's colour has to survive both the dim forest light and a pulled-back
+// camera. The sun, hemisphere and fill light together multiply diffuse by well
+// over 2, so a bright base colour clips to white on every channel — keep the
+// diffuse low and let the light saturate it, with an emissive floor so the
+// shaded side still reads as the player's colour.
+function beeBodyColor(col)    { return col.scale(0.52); }
+function beeBodyEmissive(col) { return col.scale(0.26); }
 
 // Field material config
 const FIELD_CONFIG = {
@@ -560,6 +571,16 @@ function resumeGame() {
 // width, landscape by its (foreshortened) depth. BOARD_R covers the outermost
 // honeycomb corners plus a hex radius of margin.
 const BOARD_R = 12.6;
+
+// EXP2 fog thickens with raw distance from the camera, so pulling back used to
+// bury the whole board in dark green haze. Scale the density against the zoom
+// instead, which keeps the amount of fog *on the board* roughly constant.
+const FOG_AT_BOARD = 0.55;   // haze strength where the camera is looking
+function updateFogForZoom() {
+  if (!scene || !camera) return;
+  scene.fogDensity = Math.min(0.026, FOG_AT_BOARD / camera.radius);
+}
+
 function fitCameraToScreen() {
   if (!IS_MOBILE || !camera) return;
   const portrait = window.innerHeight >= window.innerWidth;
@@ -569,8 +590,7 @@ function fitCameraToScreen() {
   // +3.2 covers the perspective stretch of the near edge and the bees' height
   const need = Math.max(BOARD_R / tanH, (BOARD_R*Math.cos(camera.beta) + 3.2) / tanV);
   camera.radius = Math.min(camera.upperRadiusLimit, Math.max(camera.lowerRadiusLimit, need));
-  // Thin the fog out with distance, so a pulled-back board keeps the desktop haze
-  if (scene) scene.fogDensity = Math.min(0.028, 1.0 / camera.radius);
+  updateFogForZoom();
 }
 
 // ── PHONE HUD LAYOUT ───────────────────────────────────────────
@@ -632,21 +652,41 @@ function buildNamesForm(n) {
     inp.dataset.defaultVal = `Player ${i+1}`;
     inp.id = `name-input-${i}`;
     inp.maxLength = 18;
+    // The placeholder name is still "untouched" until the player types: the
+    // first keystroke wipes it entirely instead of merging into it.
+    inp.dataset.pristine = '1';
     inp.addEventListener('focus', () => {
-      if (inp.value === inp.dataset.defaultVal) {
+      if (inp.dataset.pristine === '1') {
         inp.select();
         inp.classList.add('default-active');
       }
     });
     inp.addEventListener('keydown', e => {
-      if (inp.classList.contains('default-active') && (e.key === 'Backspace' || e.key === 'Delete')) {
+      if (inp.dataset.pristine === '1' && (e.key === 'Backspace' || e.key === 'Delete')) {
         e.preventDefault();
+        inp.value = '';
+        inp.dataset.pristine = '0';
+        inp.classList.remove('default-active');
       }
     });
-    inp.addEventListener('input', () => inp.classList.remove('default-active'));
+    inp.addEventListener('input', () => {
+      if (inp.dataset.pristine === '1') {
+        // Whatever survived of the default name gets cut out, so only the
+        // freshly typed characters remain.
+        const def = inp.dataset.defaultVal;
+        const at = inp.value.indexOf(def);
+        if (at !== -1) inp.value = inp.value.slice(0, at) + inp.value.slice(at + def.length);
+        inp.dataset.pristine = '0';
+        try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+      }
+      inp.classList.remove('default-active');
+    });
     inp.addEventListener('blur', () => {
       inp.classList.remove('default-active');
-      if (!inp.value.trim()) inp.value = inp.dataset.defaultVal;
+      if (!inp.value.trim()) {
+        inp.value = inp.dataset.defaultVal;
+        inp.dataset.pristine = '1';
+      }
     });
     const ai = document.createElement('button');
     ai.className = 'ai-toggle';
@@ -671,15 +711,20 @@ function buildNamesForm(n) {
 // ── BABYLON.JS INIT ────────────────────────────────────────────
 const canvas = document.getElementById('renderCanvas');
 engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer:true, stencil:true });
+// Babylon renders at CSS pixels by default, so on any retina screen the board
+// was being upscaled — the "blurry when zoomed out" look. Render at the device
+// resolution, capped at 2× so a 3× phone doesn't pay for pixels nobody sees.
+engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio || 1, 2));
 
 function createScene() {
   scene = new BABYLON.Scene(engine);
   scene.clearColor = new BABYLON.Color4(0.02, 0.05, 0.02, 1);
 
-  // Fog
+  // Fog — density is set per-frame-ish by updateFogForZoom(); the colour reads
+  // as forest haze rather than black so the far hexes fade instead of vanishing.
   scene.fogMode  = BABYLON.Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.028;
-  scene.fogColor = new BABYLON.Color3(0.04, 0.08, 0.03);
+  scene.fogDensity = 0.018;
+  scene.fogColor = new BABYLON.Color3(0.07, 0.13, 0.06);
 
   // Camera
   camera = new BABYLON.ArcRotateCamera('cam', Math.PI/3, Math.PI/3.8, 36, new BABYLON.Vector3(0, 0.5, 0), scene);
@@ -689,6 +734,8 @@ function createScene() {
   camera.upperRadiusLimit = 55;
   camera.attachControl(canvas, true);
   camera.wheelPrecision = 6;
+  camera.onViewMatrixChangedObservable.add(updateFogForZoom);
+  updateFogForZoom();
 
   // Phones: frame the whole board on a narrow screen
   if (IS_MOBILE) {
@@ -713,8 +760,9 @@ function createScene() {
   warmFill.intensity = 0.4;
   warmFill.diffuse   = new BABYLON.Color3(1.0, 0.85, 0.5);
 
-  // Shadow generator (from sun)
-  shadowGen = new BABYLON.ShadowGenerator(1024, sun);
+  // Shadow generator (from sun). A 1024 map spread over the whole board turned
+  // to mush at the far end of the zoom range on desktop.
+  shadowGen = new BABYLON.ShadowGenerator(IS_MOBILE ? 1024 : 2048, sun);
   shadowGen.useBlurExponentialShadowMap = true;
 
   buildForest();
@@ -938,10 +986,13 @@ function createBee(playerId, q, r) {
   root.rotation.y = Math.atan2(-pos.x, -pos.z);
   root.metadata = { q, r, playerId, isBee:true, tokens:[], remainingMoves:1, movedThisTurn:false, time:Math.random()*10, towerRoot:null };
 
-  // Abdomen (main bee body – elongated sphere)
+  // Abdomen (main bee body – elongated sphere). Every bee used to be the same
+  // wasp yellow with a hairline colour ring at its feet, which was unreadable
+  // once the board was zoomed out — the body itself carries the player colour.
   const abdMat = new BABYLON.StandardMaterial(`abd_${playerId}_${q}_${r}`, scene);
-  abdMat.diffuseColor  = new BABYLON.Color3(0.92, 0.72, 0.06);
-  abdMat.specularColor = new BABYLON.Color3(0.3,0.2,0.0);
+  abdMat.diffuseColor  = beeBodyColor(col);
+  abdMat.emissiveColor = beeBodyEmissive(col);
+  abdMat.specularColor = new BABYLON.Color3(0.3,0.28,0.2);
   const abd = BABYLON.MeshBuilder.CreateSphere(`abd_m`, {diameter:0.7, segments:10}, scene);
   abd.parent = root;
   abd.scaling = new BABYLON.Vector3(0.9, 1.2, 0.9);
@@ -949,26 +1000,31 @@ function createBee(playerId, q, r) {
   abd.material = abdMat;
   shadowGen.addShadowCaster(abd);
 
-  // Stripes (3 black torus rings)
+  // Stripes (black torus rings). Three fat rings swallowed most of the body,
+  // which is why the colour underneath never read from across the board — two
+  // thin ones keep the wasp silhouette and leave the abdomen visible.
   const stripeMat = new BABYLON.StandardMaterial(`stripe`, scene);
   stripeMat.diffuseColor  = new BABYLON.Color3(0.06,0.04,0.02);
   stripeMat.emissiveColor = new BABYLON.Color3(0.04,0.02,0.01);
-  for (let s = 0; s < 3; s++) {
+  for (let s = 0; s < 2; s++) {
     const stripe = BABYLON.MeshBuilder.CreateTorus(`str_${s}`, {
-      diameter:0.64, thickness:0.09, tessellation:18
+      diameter:0.63, thickness:0.062, tessellation:18
     }, scene);
     stripe.parent = root;
     stripe.rotation.x = Math.PI/2;
-    stripe.position.y = -0.16 + s*0.18;
+    stripe.position.y = -0.16 + s*0.20;
     stripe.material = stripeMat;
     stripe.isPickable = false;
   }
 
-  // Thorax (small sphere between head and abdomen)
+  // Thorax (small sphere between head and abdomen). From the normal camera
+  // angle this is the top of the bee, so it carries the colour too — a dark
+  // thorax is what made the bees read as black specks from above.
   const thorMat = new BABYLON.StandardMaterial(`thor`, scene);
-  thorMat.diffuseColor  = new BABYLON.Color3(0.12, 0.08, 0.04);
+  thorMat.diffuseColor  = beeBodyColor(col);
+  thorMat.emissiveColor = beeBodyEmissive(col);
   thorMat.specularColor = new BABYLON.Color3(0.1,0.1,0.1);
-  const thor = BABYLON.MeshBuilder.CreateSphere(`thor_m`, {diameter:0.38, segments:8}, scene);
+  const thor = BABYLON.MeshBuilder.CreateSphere(`thor_m`, {diameter:0.44, segments:8}, scene);
   thor.parent = root;
   thor.position.y = 0.44;
   thor.material = thorMat;
@@ -1013,7 +1069,7 @@ function createBee(playerId, q, r) {
   const wingMat = new BABYLON.StandardMaterial('wing', scene);
   wingMat.diffuseColor  = new BABYLON.Color3(0.9,0.95,1.0);
   wingMat.emissiveColor = new BABYLON.Color3(0.2,0.3,0.4);
-  wingMat.alpha = 0.30;
+  wingMat.alpha = 0.22;   // they sit over the body from above; keep them faint
   wingMat.backFaceCulling = false;
 
   const lwRoot = new BABYLON.TransformNode('lwr', scene);
@@ -1030,18 +1086,32 @@ function createBee(playerId, q, r) {
   const rw = BABYLON.MeshBuilder.CreateDisc('rw', {radius:0.52, tessellation:16}, scene);
   rw.parent = rwRoot; rw.scaling.x = 0.5; rw.rotation.z = -0.35; rw.material = wingMat; rw.isPickable=false;
 
-  // Player color glow ring (torus at base)
+  // Player color glow ring (torus at base) — thick enough to still read as a
+  // coloured halo from the far end of the zoom range.
   const glowMat = new BABYLON.StandardMaterial('glow', scene);
-  glowMat.emissiveColor = col.scale(0.9);
+  glowMat.emissiveColor = col.clone();
   glowMat.disableLighting = true;
   const glow = BABYLON.MeshBuilder.CreateTorus('glow', {
-    diameter:0.82, thickness:0.04, tessellation:24
+    diameter:0.98, thickness:0.085, tessellation:24
   }, scene);
   glow.parent = root;
   glow.rotation.x = Math.PI/2;
-  glow.position.y = -0.38;
+  glow.position.y = -0.42;
   glow.material = glowMat;
   glow.isPickable = false;
+
+  // Coloured footprint on the tile. From the normal playing zoom the bee itself
+  // is only a few pixels of body, so it needs a marker with actual area.
+  const padMat = new BABYLON.StandardMaterial('pad', scene);
+  padMat.emissiveColor = col.clone();
+  padMat.disableLighting = true;
+  padMat.alpha = 0.42;
+  const pad = BABYLON.MeshBuilder.CreateDisc('pad', {radius:0.66, tessellation:24}, scene);
+  pad.parent = root;
+  pad.rotation.x = Math.PI/2;
+  pad.position.y = -0.55;
+  pad.material = padMat;
+  pad.isPickable = false;
 
   // Store refs for animation
   root.metadata.lwRoot = lwRoot;
@@ -1049,6 +1119,7 @@ function createBee(playerId, q, r) {
   root.metadata.glowMesh = glow;
   root.metadata.abdMesh  = abd;
   root.metadata.abdMat   = abdMat;
+  root.metadata.abdBaseEmissive = beeBodyEmissive(col);
 
   // Assign click to all child meshes that are pickable
   [abd, thor, head].forEach(m => {
@@ -1192,6 +1263,7 @@ function initGame() {
   players = []; bees = []; nectarTokens = []; beeMeshes = []; nectarMeshes = [];
   currentPlayerIndex = 0; round = 1;
   playerHasMovedThisTurn = false;
+  autoEndPending = false; isAITurn = false;
   selectedBee = null; actionMode = 'SELECT';
 
   const all6Corners = [{q:3,r:0},{q:0,r:3},{q:-3,r:3},{q:-3,r:0},{q:0,r:-3},{q:3,r:-3}];
@@ -1220,6 +1292,10 @@ function initGame() {
       if (m) {
         m.material.diffuseColor  = playerCol.clone();
         m.material.emissiveColor = playerCol.scale(0.3);
+        // clearHighlights() restores baseEmissive, so the recolour has to land
+        // there too or a cleared capture prompt reverts the hex to plain wax.
+        m.metadata.baseColor    = playerCol.clone();
+        m.metadata.baseEmissive = playerCol.scale(0.3);
         m.metadata.owner = pIdx;
       }
     });
@@ -1311,6 +1387,13 @@ function moveBeeToPos(beeMesh, q, r, animated=true) {
 }
 
 // ── HIGHLIGHT SYSTEM ───────────────────────────────────────────
+// Clearing a highlight has to restore the bee's own colour glow, not black —
+// zeroing it drained the player colour out of every bee that was ever selected.
+function beeRestEmissive(beeMesh) {
+  const base = beeMesh.metadata?.abdBaseEmissive;
+  return base ? base.clone() : new BABYLON.Color3(0,0,0);
+}
+
 function clearHighlights() {
   highlightedHexes.forEach(m => {
     if (!m || !m.material || !m.metadata || !m.name.startsWith('hex_')) return;
@@ -1319,7 +1402,7 @@ function clearHighlights() {
   });
   highlightedHexes = [];
   chainHighlights.forEach(b => {
-    if (b.metadata?.abdMat) b.metadata.abdMat.emissiveColor = new BABYLON.Color3(0,0,0);
+    if (b.metadata?.abdMat) b.metadata.abdMat.emissiveColor = beeRestEmissive(b);
   });
   chainHighlights = [];
   captureHighlights.forEach(m => {
@@ -1371,7 +1454,7 @@ function selectBee(beeMesh) {
   deselectBee();
   selectedBee = beeMesh;
   if (beeMesh.metadata.abdMat) {
-    beeMesh.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.5, 0.4, 0.1);
+    beeMesh.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.55, 0.45, 0.12);
   }
   actionMode = 'MOVE';
   highlightValidMoves(beeMesh);
@@ -1395,7 +1478,7 @@ function selectBee(beeMesh) {
 
 function deselectBee() {
   if (selectedBee && selectedBee.metadata?.abdMat) {
-    selectedBee.metadata.abdMat.emissiveColor = new BABYLON.Color3(0,0,0);
+    selectedBee.metadata.abdMat.emissiveColor = beeRestEmissive(selectedBee);
   }
   selectedBee = null;
   beeDetailsOpen = false;
@@ -1452,6 +1535,7 @@ function executeMove(beeMesh, tq, tr) {
   document.getElementById('move-out-btn').style.display = 'none';
   updateHUD();
   updateBeePanel();
+  maybeAutoEndTurn();
 }
 
 function spawnScoreParticle(q, r, val, playerId) {
@@ -1517,7 +1601,7 @@ function executeCapture(homeQ, homeR) {
   updateHUD();
   updateBeePanel();
   setActionHint(stolen > 0 ? `Stole ${stolen} nectar!` : 'Capture executed!');
-  setTimeout(()=>setActionHint(''),2000);
+  setTimeout(()=>{ setActionHint(''); maybeAutoEndTurn(); }, 2000);
 }
 
 // ── CHAIN ──────────────────────────────────────────────────────
@@ -1623,7 +1707,7 @@ function executeChain(targetBee) {
       updateTokenTower(targetBee);
     }
     setActionHint('Token passed!');
-    setTimeout(()=>setActionHint(''),1500);
+    setTimeout(()=>{ setActionHint(''); maybeAutoEndTurn(); }, 1500);
   });
 }
 
@@ -1638,7 +1722,7 @@ function executeBoost(beeMesh, tokenIndex) {
   if (IS_MOBILE) beeDetailsOpen = false; // the lit fields matter more than the panel now
   updateBeePanel();
   setActionHint(`Boost! +${val} moves`);
-  setTimeout(()=>setActionHint(''),1500);
+  setTimeout(()=>{ setActionHint(''); maybeAutoEndTurn(); }, 1500);
 }
 
 // ── MOVE ALL OUT ───────────────────────────────────────────────
@@ -1671,6 +1755,7 @@ function moveAllOut() {
   document.getElementById('move-out-btn').style.display = 'none';
   if (movedAny) playerHasMovedThisTurn = true;
   updateHUD();
+  maybeAutoEndTurn();
 }
 
 // ── INPUT HANDLING ─────────────────────────────────────────────
@@ -1800,7 +1885,11 @@ function updateHUD() {
   turnName.style.color  = p.color;
   turnName.style.borderBottomColor = p.color;
 
-  document.getElementById('finish-btn').disabled = !playerHasMovedThisTurn;
+  // Finishing is allowed once something has happened, and also when the turn
+  // dead-ends before the player got a move in — otherwise they'd be stuck.
+  const canFinish = !isAITurn && !p.isAI &&
+                    (playerHasMovedThisTurn || !playerHasActionsLeft());
+  document.getElementById('finish-btn').disabled = !canFinish;
 }
 
 function updateScorePanel() {
@@ -1889,8 +1978,45 @@ function setActionHint(text, instructional=false) {
 }
 
 // ── TURN MANAGEMENT ────────────────────────────────────────────
+// A turn is spent when nothing the player does could still change the board:
+// every bee is out of moves or boxed in, and nobody is carrying nectar (a
+// carried token can always be spent on a Boost or handed down a Chain).
+function playerHasActionsLeft(pIdx = currentPlayerIndex) {
+  return bees.some(b => {
+    if (b.metadata.playerId !== pIdx) return false;
+    if (b.metadata.tokens.length > 0) return true;
+    if (b.metadata.remainingMoves <= 0) return false;
+    const {q, r} = b.metadata;
+    return getNeighbors(q, r).some(n =>
+      isValidMoveTarget(b.metadata, n.q, n.r) || isValidAttackTarget(b.metadata, n.q, n.r));
+  });
+}
+
+// Pass-and-play needs a beat for the device to change hands, so a dead-ended
+// turn only closes itself when the current player is the only human in the game.
+let autoEndPending = false;
+function maybeAutoEndTurn() {
+  if (!gameStarted || isAITurn || autoEndPending) return;
+  if (players[currentPlayerIndex]?.isAI) return;
+  if (!document.getElementById('win-screen').classList.contains('hidden')) return;
+  if (playerHasActionsLeft()) return;
+
+  const soloHuman = players.filter(p => !p.isAI).length <= 1;
+  if (!soloHuman) { setActionHint('No moves left — press Finish Turn'); return; }
+
+  autoEndPending = true;
+  setActionHint('No moves left — ending turn');
+  setTimeout(() => {
+    autoEndPending = false;
+    if (isAITurn || playerHasActionsLeft()) return;
+    setActionHint('');
+    nextTurn();
+  }, 1100);
+}
+
 function nextTurn() {
-  if (!playerHasMovedThisTurn) return;
+  if (!playerHasMovedThisTurn && playerHasActionsLeft()) return;
+  autoEndPending = false;
   deselectBee();
   bees.forEach(b => { b.metadata.movedThisTurn=false; b.metadata.remainingMoves=1; });
   currentPlayerIndex = (currentPlayerIndex+1) % players.length;
@@ -1902,7 +2028,6 @@ function nextTurn() {
   document.getElementById('ai-thinking').textContent='';
 
   if (players[currentPlayerIndex].isAI) scheduleAITurn();
-  else document.getElementById('finish-btn').disabled = true;
 }
 
 // ── AI SYSTEM ──────────────────────────────────────────────────
@@ -2121,7 +2246,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.code === 'Space') {
     e.preventDefault();
-    if (playerHasMovedThisTurn && !isAITurn) nextTurn();
+    if (!isAITurn) nextTurn();   // nextTurn() enforces its own preconditions
   }
   if (e.code === 'Escape') {
     if (isHowToOpen()) { closeHowTo(); return; }
@@ -2552,7 +2677,7 @@ const HIVE_SHAPES = [
 ];
 
 // ══════════════════════════════════════════════════════════════════
-//  DAILY HIVE PUZZLE — UI
+//  HIVE PUZZLE — UI
 // ══════════════════════════════════════════════════════════════════
 const HIVE_SAVE_KEY = 'nectarHive';
 let hivePuzzle = null, hiveHiveGraph = null, hiveEntries = [], hiveSel = -1;
