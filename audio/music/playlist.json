@@ -1,0 +1,11 @@
+{
+  "_comment": "Play order is the order of this list. To add a track: drop the file in audio/music/ with the next number prefix, then add a line here. Nothing in index.html needs to change.",
+  "tracks": [
+    {
+      "file": "01-march-of-the-bees.mp3",
+      "title": "March of the Bees",
+      "composer": "Simon Allmer",
+      "seconds": 216
+    }
+  ]
+}

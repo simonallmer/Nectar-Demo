@@ -47,6 +47,16 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0a0f08;font-family:
 .ai-toggle{background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:2px;padding:6px 10px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
 .ai-toggle.on{border-color:rgba(80,180,100,0.6);color:#50b464;background:rgba(80,180,100,0.08)}
 
+/* Options */
+.options-grid{display:flex;flex-direction:column;gap:18px;margin:14px 0 4px;width:min(430px,84vw)}
+.option-row{display:flex;align-items:center;gap:16px}
+.option-row label{font-family:'Cinzel',serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(232,224,204,0.6);flex:0 0 118px;text-align:left}
+.option-slider{flex:1;-webkit-appearance:none;appearance:none;height:2px;background:rgba(212,168,75,0.25);outline:none;cursor:pointer}
+.option-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:#d4a84b;cursor:pointer;box-shadow:0 0 8px rgba(212,168,75,0.5)}
+.option-slider::-moz-range-thumb{width:14px;height:14px;background:#d4a84b;border:none;cursor:pointer}
+.option-val{font-family:'Cinzel',serif;font-size:10px;letter-spacing:1px;color:#d4a84b;flex:0 0 42px;text-align:right}
+body.mobile .option-row label{flex-basis:96px;font-size:9px;letter-spacing:1px}
+
 /* Rules */
 .rules-box{max-width:580px;max-height:68vh;overflow-y:auto;padding:32px;border:1px solid rgba(212,168,75,0.2);background:rgba(10,15,8,0.6);text-align:left;scrollbar-width:thin;scrollbar-color:#d4a84b22 transparent}
 .rules-box h3{font-family:'Cinzel',serif;color:#d4a84b;font-size:13px;letter-spacing:3px;margin:20px 0 8px;text-transform:uppercase}
@@ -277,6 +287,7 @@ body.mobile .hive-done p{font-size:12px}
   <button class="menu-btn" id="resume-btn" style="display:none" onclick="resumeGame()">Resume Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')">Play Game</button>
   <button class="menu-btn" onclick="openHivePuzzle()">Hive Puzzle</button>
+  <button class="menu-btn" onclick="showScreen('screen-options')">Options</button>
   <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
   <button class="menu-btn" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
   <div class="copyright">© 2021–2026 Simon Allmer Entertainment</div>
@@ -305,6 +316,27 @@ body.mobile .hive-done p{font-size:12px}
   <div class="names-grid" id="names-grid"></div>
   <button class="menu-btn" onclick="startGame()">Begin Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')" style="font-size:11px;min-width:140px;margin-top:6px">Back</button>
+</div>
+
+<!-- OPTIONS -->
+<div id="screen-options" class="screen hidden">
+  <div class="game-title" style="font-size:clamp(28px,4vw,48px);margin-bottom:6px">OPTIONS</div>
+  <div class="game-subtitle">Sound</div>
+  <div class="forest-divider"></div>
+  <div class="options-grid">
+    <div class="option-row">
+      <label for="opt-sfx">Sound Effects</label>
+      <input id="opt-sfx" class="option-slider" type="range" min="0" max="100" step="1" value="100">
+      <span id="opt-sfx-val" class="option-val">100%</span>
+    </div>
+    <div class="option-row">
+      <label for="opt-music">Music</label>
+      <input id="opt-music" class="option-slider" type="range" min="0" max="100" step="1" value="55">
+      <span id="opt-music-val" class="option-val">55%</span>
+    </div>
+  </div>
+  <!-- Language goes here when there is more than one. -->
+  <button class="menu-btn" onclick="showScreen('screen-main')" style="margin-top:24px">Back</button>
 </div>
 
 <!-- RULES -->
@@ -375,6 +407,7 @@ body.mobile .hive-done p{font-size:12px}
     <button id="finish-btn" class="ctrl-btn" disabled onclick="nextTurn()">Finish Turn</button>
     <button id="move-out-btn" class="ctrl-btn secondary" onclick="moveAllOut()">Move All Out</button>
     <button id="pause-btn" class="ctrl-btn secondary" onclick="togglePause()">Pause</button>
+    <button id="mute-btn" class="ctrl-btn secondary" onclick="toggleMute()" aria-label="Sound on/off">♪</button>
     <button id="help-btn" class="ctrl-btn secondary" onclick="showHowTo()" aria-label="How to play">?</button>
   </div>
 
@@ -478,6 +511,9 @@ const HEX_SIZE= 1.55;   // mesh cylinder radius – must equal HEX_R for gapless
 const HEX_H   = 0.22;   // hex tile height
 const BEE_Y   = 0.80;   // base hover height
 const WIN_SCORE = 10;
+// One hop, in milliseconds. Shared by the animation and by the move sound, so
+// the touchdown thud can't drift away from the frame the bee actually lands on.
+const MOVE_ANIM_MS = 400;
 const DIRECTIONS = [{q:1,r:0},{q:1,r:-1},{q:0,r:-1},{q:-1,r:0},{q:-1,r:1},{q:0,r:1}];
 
 // ── PHONE DETECTION ─────────────────────────────────────────────
@@ -490,6 +526,754 @@ const IS_MOBILE = (function() {
   return coarse && shortEdge <= 500;
 })();
 if (IS_MOBILE) document.body.classList.add('mobile');
+
+// ── AUDIO ──────────────────────────────────────────────────────
+// Every sound is synthesised at runtime. No files to load, nothing to stall the
+// first frame, and no second set of binaries to keep in sync with the demo
+// build. What keeps synthesis from sounding like a 1985 cabinet, in order of
+// how much it matters:
+//
+//   1. Layers. Each event is a transient + a body + air. A lone oscillator with
+//      a click envelope *is* what "cheap" sounds like — the ear reads the
+//      broadband transient as the physical event and the rest as its character.
+//   2. Exponential envelopes with a 0.0001 floor. Ramping a gain to a true zero
+//      puts a click on the tail of every single sound.
+//   3. One shared convolution tail, so effects sit in a room together instead
+//      of on top of the picture.
+//   4. Nothing repeats exactly: pitch, timing, and the slice of the noise
+//      buffer all wander per trigger.
+//   5. Pitched material comes from one D-minor set and mostly stays out of the
+//      300 Hz–1 kHz midrange, which is where an orchestral score will live.
+//      The music bus and duck() are here for that score; nothing uses them yet.
+const Sound = (() => {
+  const N = { D2:73.42, A2:110.00, D3:146.83, F3:174.61, G3:196.00, A3:220.00,
+              C4:261.63, D4:293.66, F4:349.23, G4:392.00, A4:440.00,
+              C5:523.25, D5:587.33, F5:698.46, A5:880.00 };
+
+  let ctx = null, master = null, sfxBus = null, musicBus = null, musicVolNode = null;
+  let verb = null, noiseBuf = null, shaperCurve = null;
+  let muted = false, voices = 0;
+  const MASTER_LEVEL = 0.85;   // leaves the limiter something to work with
+
+  // Player settings, remembered across sessions. Effects are calibrated at 1.0;
+  // the score sits under them by default because it plays continuously.
+  let sfxVol = 1, musicVol = 0.55;
+  const stored = (key, fallback) => {
+    try {
+      const v = localStorage.getItem(key);
+      if (v === null) return fallback;
+      const n = parseFloat(v);
+      return isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback;
+    } catch (e) { return fallback; }
+  };
+  try { muted = localStorage.getItem('nectarMuted') === '1'; } catch (e) {}
+  sfxVol   = stored('nectarSfxVol', sfxVol);
+  musicVol = stored('nectarMusicVol', musicVol);
+
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  function init() {
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+
+    // Everything lands on one limiter, so a capture landing on top of three
+    // bee moves cannot clip the output. The threshold sits high on purpose:
+    // at -6 dBFS a mastered orchestral track was over it on its own, which
+    // means the limiter rides the score continuously and every effect audibly
+    // pumps it. It should only catch things stacking up, not the music.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;  limiter.knee.value = 0;
+    limiter.ratio.value = 20;      limiter.attack.value = 0.002;
+    limiter.release.value = 0.14;
+    limiter.connect(ctx.destination);
+
+    master = ctx.createGain();
+    master.gain.value = muted ? 0.0001 : MASTER_LEVEL;
+    master.connect(limiter);
+
+    // sfxBus carries the Sound Effects setting; musicVolNode carries Music.
+    // musicBus is left alone so duck() owns it outright and can't fight a
+    // slider, and the reverb return lands on sfxBus rather than on master —
+    // otherwise turning effects down would leave a full-level tail behind.
+    sfxBus   = ctx.createGain(); sfxBus.gain.value = sfxVol;   sfxBus.connect(master);
+    musicBus = ctx.createGain();                               musicBus.connect(master);
+    musicVolNode = ctx.createGain(); musicVolNode.gain.value = musicVol;
+    musicVolNode.connect(musicBus);
+
+    verb = ctx.createConvolver();
+    verb.buffer = makeIR(1.9, 2.4, 0.30);
+    const verbReturn = ctx.createGain();
+    verbReturn.gain.value = 0.9;
+    verb.connect(verbReturn); verbReturn.connect(sfxBus);
+
+    noiseBuf = makeNoise(3);
+    return ctx;
+  }
+
+  // A procedural impulse response: lowpassed noise under an exponential decay,
+  // plus a handful of early reflections. The reflections are what stop it
+  // reading as a generic wash — they imply a space with surfaces in it.
+  function makeIR(seconds, decay, damp) {
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += ((Math.random() * 2 - 1) - lp) * damp;
+        d[i] = lp * Math.pow(1 - i / len, decay);
+      }
+      [0.011, 0.019, 0.031, 0.047].forEach((sec, k) => {
+        const i = Math.floor(sec * ctx.sampleRate) + (ch ? 37 : 0);
+        if (i < len) d[i] += (0.5 - k * 0.1) * (ch ? -1 : 1);
+      });
+    }
+    return buf;
+  }
+
+  function makeNoise(seconds) {
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  // ── voice primitives ──
+  function gain(v = 1) { const g = ctx.createGain(); g.gain.value = v; return g; }
+
+  function filt(type, freq, q = 1) {
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    return f;
+  }
+
+  function osc(type, freq, t, dur, detune = 0) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.detune.value = detune;
+    o.start(t); o.stop(t + dur + 0.02);
+    return o;
+  }
+
+  // A different slice of the buffer every time, so repeated hits never phase
+  // into the same "tsk".
+  function noise(t, dur) {
+    const s = ctx.createBufferSource();
+    s.buffer = noiseBuf; s.loop = true;
+    s.start(t, rnd(0, 2.4)); s.stop(t + dur + 0.02);
+    return s;
+  }
+
+  // The 0.0001 floor is not a nicety: exponentialRampToValueAtTime cannot
+  // reach zero, and setValueAtTime(0) would click.
+  function env(param, t, peak, attack, dur) {
+    param.cancelScheduledValues(t);
+    param.setValueAtTime(0.0001, t);
+    param.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + attack);
+    param.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+
+  // Band-limited air. A bare highpass leaves everything up to Nyquist at full
+  // level, which measures as a 9 kHz spectral centroid and hears as tape hiss —
+  // the single most common way synthesised "shimmer" gives itself away. Real
+  // air layers are a band, so they get a ceiling too.
+  function air(t, dur, lo, hi, level, attack, dest) {
+    const n = noise(t, dur);
+    const hp = filt('highpass', lo, 0.7);
+    const lp = filt('lowpass', hi, 0.7);
+    const g = gain();
+    env(g.gain, t, level, attack, dur * 0.95);
+    n.connect(hp); hp.connect(lp); lp.connect(g); g.connect(dest);
+  }
+
+  function shaper() {
+    const ws = ctx.createWaveShaper();
+    if (!shaperCurve) {
+      shaperCurve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) shaperCurve[i] = Math.tanh(((i / 1023) * 2 - 1) * 2.6);
+    }
+    ws.curve = shaperCurve; ws.oversample = '2x';
+    return ws;
+  }
+
+  // A struck-bell voice. The decaying modulation index is the whole trick —
+  // real struck metal sheds its upper partials first, a static FM ratio just
+  // sounds like a synth beep.
+  function bell(t, freq, dur, level, dest, ratio = 3.51) {
+    const car = osc('sine', freq, t, dur);
+    const mod = osc('sine', freq * ratio, t, dur);
+    const mg = gain();
+    env(mg.gain, t, freq * 2.6, 0.004, dur * 0.35);
+    mod.connect(mg); mg.connect(car.frequency);
+    const g = gain();
+    env(g.gain, t, level, 0.006, dur);
+    car.connect(g); g.connect(dest);
+  }
+
+  // One destination per sound event: dry to the sfx bus, a slice to the tail,
+  // and a panner that can travel while the sound plays.
+  function bus(send, panFrom = 0, panTo = null, t = 0, glide = 0.3) {
+    const g = gain();
+    let tap = g;
+    if (ctx.createStereoPanner) {
+      const p = ctx.createStereoPanner();
+      p.pan.value = panFrom;
+      if (panTo !== null) {
+        p.pan.setValueAtTime(panFrom, t);
+        p.pan.linearRampToValueAtTime(panTo, t + glide);
+      }
+      g.connect(p); tap = p;
+    }
+    tap.connect(sfxBus);
+    if (send > 0) { const s = gain(send); tap.connect(s); s.connect(verb); }
+    return g;
+  }
+
+  // Board position → stereo position. A move on the far left of the board
+  // genuinely arrives on the left.
+  function boardPan(q, r) {
+    if (typeof axialToWorld !== 'function') return 0;
+    return Math.max(-0.75, Math.min(0.75, axialToWorld(q, r).x / 9));
+  }
+
+  // Rough polyphony budget so Move All Out can't detonate twelve layered
+  // sounds at once.
+  function budget(cost) {
+    if (voices > 26) return false;
+    voices += cost;
+    setTimeout(() => { voices = Math.max(0, voices - cost); }, 900);
+    return true;
+  }
+
+  function ready() {
+    if (muted) return false;
+    if (!init()) return false;
+    if (ctx.state === 'suspended') { ctx.resume(); return false; }
+    return true;
+  }
+
+  // ── the palette ──
+
+  // Push-off, air, touchdown — with the wing kept underneath rather than out
+  // front. Three things were wrong with the first pass, and they are the three
+  // easy ways to make a movement cue sound like a toy:
+  //
+  //   · The thud landed at 300 ms while the hop animation runs 24 frames at
+  //     60 fps, so the bee touched down 100 ms after you heard it. LAND is now
+  //     tied to MOVE_ANIM_MS, and the jitter is small enough not to smear it.
+  //   · A 25 Hz tremolo at depth 0.30 is a motorboat, not an insect. The
+  //     flutter is now fast and shallow, so it reads as texture on the tone
+  //     instead of a pulse of its own.
+  //   · A ±16% pitch sweep is a scooter going past. It is a gentle arc now.
+  //
+  // The wing is also quieter and darker than it was: this fires on every
+  // single move, and it has to sit under an orchestral score without poking
+  // through it.
+  // `wing` is how much bee is in it. 0 is pure air and contact; 0.16 is an
+  // audible buzz on every hop. It is a parameter because it is a taste call,
+  // and ?soundtest=1 offers all three so it can be settled by ear.
+  function move(fq, fr, tq, tr, wing = MOVE_WING) {
+    if (!ready() || !budget(4)) return;
+    const t = ctx.currentTime + rnd(0.004, 0.022);
+    const LAND = MOVE_ANIM_MS / 1000;
+    const b = bus(0.16, boardPan(fq, fr), boardPan(tq, tr), t, LAND);
+
+    const kick = noise(t, 0.09), kf = filt('bandpass', rnd(1500, 1900), 1.0), kg = gain();
+    env(kg.gain, t, 0.16, 0.004, 0.08);
+    kick.connect(kf); kf.connect(kg); kg.connect(b);
+
+    const f0 = rnd(196, 214);
+    const w1 = osc('sawtooth', f0, t, LAND, rnd(-7, 7));
+    const w2 = osc('triangle', f0 * 1.004, t, LAND, rnd(-7, 7));
+    [[w1, 1], [w2, 1.004]].forEach(([o, m]) => {
+      o.frequency.exponentialRampToValueAtTime(f0 * 1.05 * m, t + 0.12);
+      o.frequency.exponentialRampToValueAtTime(f0 * 0.97 * m, t + LAND);
+    });
+    // A louder wing also opens up, so "more bee" means more present rather
+    // than just more mud in the low mids.
+    const wf = filt('lowpass', 460 + wing * 2600, 1.4);
+    const trem = gain(0.90);
+    const lfo = osc('sine', rnd(46, 58), t, LAND), lfoG = gain(0.10);
+    lfo.connect(lfoG); lfoG.connect(trem.gain);
+    const wg = gain();
+    env(wg.gain, t, Math.max(wing, 0.0002), 0.07, LAND);
+    w1.connect(wf); w2.connect(wf);
+    wf.connect(trem); trem.connect(wg); wg.connect(b);
+
+    // The air is the layer doing the work — it is what "something crossed the
+    // board" actually sounds like. It peaks at the apex of the hop.
+    const air = noise(t, LAND), af = filt('bandpass', 900, 0.8), ag = gain();
+    af.frequency.setValueAtTime(900, t);
+    af.frequency.exponentialRampToValueAtTime(2600, t + LAND * 0.45);
+    af.frequency.exponentialRampToValueAtTime(1100, t + LAND);
+    env(ag.gain, t, 0.13, LAND * 0.4, LAND * 0.97);
+    air.connect(af); af.connect(ag); ag.connect(b);
+
+    const lt = t + LAND * 0.95;                     // a touch early reads tighter
+    const thud = osc('sine', 132, lt, 0.15);
+    thud.frequency.exponentialRampToValueAtTime(82, lt + 0.07);
+    const tg = gain(); env(tg.gain, lt, 0.20, 0.005, 0.14);
+    thud.connect(tg); tg.connect(b);
+    const tick = noise(lt, 0.05), tf = filt('bandpass', 2600, 2.2), tkg = gain();
+    env(tkg.gain, lt, 0.10, 0.003, 0.045);
+    tick.connect(tf); tf.connect(tkg); tkg.connect(b);
+  }
+
+  // Selection: a dry wooden tick plus a quiet resonant note. Small, but it has
+  // to feel like contact with an object, not a UI beep.
+  function select(q, r) {
+    if (!ready() || !budget(2)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.20, boardPan(q, r));
+    const tk = noise(t, 0.06), tf = filt('bandpass', rnd(2600, 3100), 6), tg = gain();
+    env(tg.gain, t, 0.20, 0.004, 0.055);
+    tk.connect(tf); tf.connect(tg); tg.connect(b);
+    const tone = osc('triangle', N.A4, t, 0.28, rnd(-6, 6));
+    const lp = filt('lowpass', 3000, 0.8), g = gain();
+    env(g.gain, t, 0.085, 0.008, 0.26);
+    tone.connect(lp); lp.connect(g); g.connect(b);
+  }
+
+  // Nectar collected. The register carries the value, so the sound tells you
+  // what you picked up before the panel does.
+  function pickup(value, q, r) {
+    if (!ready() || !budget(3)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.35, boardPan(q, r));
+    const sets = { 1: [N.D4, N.F4, N.A4], 2: [N.F4, N.A4, N.C5], 4: [N.A4, N.C5, N.D5] };
+    (sets[value] || sets[2]).forEach((f, i) => bell(t + i * 0.06, f, 0.55, 0.13, b));
+    if (value === 4) air(t, 0.5, 5000, 10500, 0.05, 0.10, b);
+  }
+
+  // Nectar delivered home — the same family as pickup, but wider and with
+  // weight underneath so scoring lands as an event.
+  function score(gained, q, r) {
+    if (!ready() || !budget(4)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.45, boardPan(q, r));
+    [N.D4, N.F4, N.A4, N.D5].forEach((f, i) => bell(t + i * 0.07, f, 0.9, 0.12, b));
+    const low = osc('triangle', N.D2, t, 0.7), lf = filt('lowpass', 300), lg = gain();
+    env(lg.gain, t, 0.14, 0.06, 0.65);
+    low.connect(lf); lf.connect(lg); lg.connect(b);
+  }
+
+  // The kick-out. Four layers: a broadband crack, a sub thump for weight, a
+  // gritty mid body, and a whoosh that travels from the fight to the enemy's
+  // honeycomb — the bee audibly gets thrown across the stereo field.
+  function capture(aq, ar, hq, hr) {
+    if (!ready() || !budget(6)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.50, boardPan(aq, ar), boardPan(hq, hr), t, 0.45);
+
+    const crack = noise(t, 0.16), cf = filt('lowpass', 1800, 0.9), cg = gain();
+    cf.frequency.exponentialRampToValueAtTime(220, t + 0.13);
+    env(cg.gain, t, 0.50, 0.003, 0.14);
+    crack.connect(cf); cf.connect(cg); cg.connect(b);
+
+    const sub = osc('sine', 140, t, 0.34);
+    sub.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    const sg = gain(); env(sg.gain, t, 0.55, 0.006, 0.30);
+    sub.connect(sg); sg.connect(b);
+
+    const body = osc('sawtooth', 180, t, 0.28, rnd(-14, 14));
+    body.frequency.exponentialRampToValueAtTime(60, t + 0.20);
+    const ws = shaper(), bf = filt('lowpass', 2500, 1.6), bg = gain();
+    bf.frequency.exponentialRampToValueAtTime(300, t + 0.24);
+    env(bg.gain, t, 0.22, 0.006, 0.26);
+    body.connect(ws); ws.connect(bf); bf.connect(bg); bg.connect(b);
+
+    const wt = t + 0.08;
+    const wh = noise(wt, 0.44), wf = filt('bandpass', 2600, 1.2), wg = gain();
+    wf.frequency.exponentialRampToValueAtTime(400, wt + 0.42);
+    env(wg.gain, wt, 0.17, 0.12, 0.42);
+    wh.connect(wf); wf.connect(wg); wg.connect(b);
+  }
+
+  // Entering "choose a honeycomb" — a soft two-note tension cue, not a beep.
+  function aim() {
+    if (!ready() || !budget(2)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.30);
+    bell(t, N.A3, 0.4, 0.10, b, 2.01);
+    bell(t + 0.09, N.D4, 0.5, 0.09, b, 2.01);
+  }
+
+  // Token handed down a chain: a rising zip plus two notes a fourth apart.
+  function chain(fq, fr, tq, tr) {
+    if (!ready() || !budget(3)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.30, boardPan(fq, fr), boardPan(tq, tr), t, 0.25);
+    const z = noise(t, 0.24), zf = filt('bandpass', 500, 2.4), zg = gain();
+    zf.frequency.exponentialRampToValueAtTime(3000, t + 0.22);
+    env(zg.gain, t, 0.12, 0.03, 0.23);
+    z.connect(zf); zf.connect(zg); zg.connect(b);
+    bell(t, N.G4, 0.35, 0.10, b);
+    bell(t + 0.13, N.C5, 0.45, 0.10, b);
+  }
+
+  // Boost — spending nectar for moves. Upward, energetic, short.
+  function boost(q, r) {
+    if (!ready() || !budget(3)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.25, boardPan(q, r));
+    const sw = osc('sawtooth', 160, t, 0.30);
+    sw.frequency.exponentialRampToValueAtTime(520, t + 0.26);
+    const lp = filt('lowpass', 1400, 3), g = gain();
+    lp.frequency.exponentialRampToValueAtTime(4200, t + 0.26);
+    env(g.gain, t, 0.13, 0.02, 0.28);
+    sw.connect(lp); lp.connect(g); g.connect(b);
+    bell(t + 0.16, N.D5, 0.4, 0.09, b);
+  }
+
+  // Nectar blooming somewhere on the board — soft, distant, easy to miss.
+  function bloom(q, r) {
+    if (!ready() || !budget(2)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.55, boardPan(q, r));
+    bell(t, N.A4, 0.9, 0.075, b, 5.02);
+    bell(t + 0.11, N.D5, 1.1, 0.055, b, 5.02);
+    air(t, 0.7, 4200, 9000, 0.03, 0.18, b);
+  }
+
+  // Weather dice: a handful of wooden ticks at irregular intervals, then the
+  // settle. Irregular is the point — evenly spaced ticks sound synthetic.
+  function dice() {
+    if (!ready() || !budget(4)) return;
+    const t0 = ctx.currentTime + 0.004;
+    const b = bus(0.22);
+    let t = t0;
+    const count = 4 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const n = noise(t, 0.05), f = filt('bandpass', rnd(1400, 3200), 8), g = gain();
+      env(g.gain, t, rnd(0.10, 0.20), 0.003, 0.045);
+      const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      n.connect(f); f.connect(g);
+      if (p) { p.pan.value = rnd(-0.4, 0.4); g.connect(p); p.connect(b); } else g.connect(b);
+      t += rnd(0.04, 0.09);
+    }
+    const settle = osc('sine', 150, t, 0.20);
+    settle.frequency.exponentialRampToValueAtTime(85, t + 0.10);
+    const sg = gain(); env(sg.gain, t, 0.18, 0.005, 0.18);
+    settle.connect(sg); sg.connect(b);
+  }
+
+  // Turn change. Deliberately the quietest thing here — it fires constantly
+  // and it is exactly where a score would want the space.
+  function turn() {
+    if (!ready() || !budget(2)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.40);
+    [N.D2, N.D3].forEach((f, i) => {
+      const o = osc('triangle', f, t, 0.7, rnd(-5, 5));
+      const lp = filt('lowpass', 400), g = gain();
+      env(g.gain, t, i ? 0.06 : 0.10, 0.18, 0.62);
+      o.connect(lp); lp.connect(g); g.connect(b);
+    });
+    air(t, 0.5, 2600, 6500, 0.022, 0.20, b);
+  }
+
+  // "That won't work" — a muted thud, never a buzzer. Negative feedback should
+  // be quiet enough that hearing it repeatedly doesn't punish the player.
+  function denied() {
+    if (!ready() || !budget(2)) return;
+    const t = ctx.currentTime + 0.004;
+    const b = bus(0.15);
+    const o = osc('sine', 96, t, 0.18);
+    o.frequency.exponentialRampToValueAtTime(62, t + 0.12);
+    const g = gain(); env(g.gain, t, 0.20, 0.008, 0.16);
+    o.connect(g); g.connect(b);
+    const n = noise(t, 0.09), f = filt('lowpass', 700), ng = gain();
+    env(ng.gain, t, 0.10, 0.004, 0.08);
+    n.connect(f); f.connect(ng); ng.connect(b);
+  }
+
+  function ui(kind = 'click') {
+    if (!ready() || !budget(1)) return;
+    const t = ctx.currentTime + 0.003;
+    const b = bus(0.10);                            // UI stays close and dry
+    const lvl = kind === 'hover' ? 0.06 : 0.19;
+    const n = noise(t, 0.06), f = filt('bandpass', kind === 'back' ? 2200 : 4200, 1.2), g = gain();
+    env(g.gain, t, lvl, 0.003, 0.05);
+    n.connect(f); f.connect(g); g.connect(b);
+    const o = osc('triangle', kind === 'back' ? N.G4 : N.C5, t, 0.09, rnd(-8, 8));
+    const og = gain(); env(og.gain, t, lvl * 0.4, 0.005, 0.08);
+    o.connect(og); og.connect(b);
+  }
+
+  // Victory. Restrained on purpose: this is where an orchestral cue will go,
+  // and a synth fanfare would only be in its way.
+  function win() {
+    if (!ready()) return;
+    const t = ctx.currentTime + 0.01;
+    const b = bus(0.60);
+    [N.D3, N.F3, N.A3, N.D4].forEach((f, i) => bell(t + i * 0.14, f, 2.2, 0.13, b, 2.01));
+    const low = osc('triangle', N.D2, t, 2.4), lf = filt('lowpass', 260), lg = gain();
+    env(lg.gain, t, 0.18, 0.5, 2.2);
+    low.connect(lf); lf.connect(lg); lg.connect(b);
+    air(t, 2.0, 3800, 9500, 0.035, 0.7, b);
+  }
+
+  // ── MUSIC ──
+  // Real files, unlike the effects — streamed from audio/music/ and routed
+  // through musicBus, so the mute button and duck() reach the score for free.
+  //
+  //   musicSrc → musicGain (level, fades) → musicBus (ducking) → master
+  //
+  // The two gains are separate on purpose: duck() owns musicBus and nothing
+  // else touches it, so a duck landing mid-fade can't fight the fade.
+  const MOVE_WING = 0.075;   // see move() — how much buzz is in a hop
+
+  // If playlist.json can't be fetched, fall back to the shipped track rather
+  // than going silent. Opening index.html straight off disk does exactly that:
+  // file:// blocks fetch, while an <audio> element can still load a relative
+  // path — which is why the effects would work and the score wouldn't.
+  const FALLBACK_TRACKS = [{ file: '01-march-of-the-bees.mp3', title: 'March of the Bees' }];
+
+  // A media element loaded from file:// is opaque to Web Audio — routing it
+  // through the graph produces silence, which is exactly the shape of "the
+  // effects work but the music doesn't". There, play the element directly and
+  // drive its level with element.volume. Ducking is lost off disk; playback
+  // isn't. Over http the graph does the work as normal.
+  const musicRouted = location.protocol !== 'file:';
+
+  let musicEl = null, musicFade = null, playlist = null, trackIdx = -1, musicPending = false;
+
+  async function loadPlaylist() {
+    if (playlist) return playlist;
+    try {
+      const res = await fetch('audio/music/playlist.json', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      playlist = (await res.json()).tracks || [];
+    } catch (e) {
+      console.warn('[Nectar] audio/music/playlist.json unreachable (' + e.message +
+        '). Falling back to the built-in track list. If you opened index.html from ' +
+        'disk, serve it over http — file:// blocks the fetch.');
+      playlist = FALLBACK_TRACKS.slice();
+    }
+    return playlist;
+  }
+
+  // Synchronous once the playlist is in memory, which is why it gets warmed up
+  // at load: iOS Safari only honours .play() when it is called in the same tick
+  // as the tap, and awaiting a fetch first would lose the gesture.
+  function musicPlay(from = 0) {
+    if (!playlist) { loadPlaylist().then(() => musicPlay(from)); return; }
+    if (!playlist[from] || !init()) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    trackIdx = from;
+
+    if (!musicEl) {
+      musicEl = new Audio();
+      musicEl.preload = 'auto';
+      // One track, then the next, then silence. It never loops back round.
+      musicEl.addEventListener('ended', () => {
+        if (trackIdx + 1 < playlist.length) musicPlay(trackIdx + 1);
+      });
+      musicEl.addEventListener('error', () => {
+        const e = musicEl.error;
+        console.warn('[Nectar] could not load ' + musicEl.src +
+          (e ? ' (media error ' + e.code + ')' : ''));
+      });
+      if (musicRouted) {
+        musicFade = gain(0.0001);
+        ctx.createMediaElementSource(musicEl).connect(musicFade);
+        musicFade.connect(musicVolNode);
+      }
+    }
+
+    musicEl.src = 'audio/music/' + encodeURIComponent(playlist[trackIdx].file);
+    if (musicRouted) {
+      const t = ctx.currentTime;
+      musicFade.gain.cancelScheduledValues(t);
+      musicFade.gain.setValueAtTime(0.0001, t);
+      musicFade.gain.exponentialRampToValueAtTime(1, t + 1.4);
+    } else {
+      musicEl.volume = muted ? 0 : musicVol;
+    }
+
+    const p = musicEl.play();
+    if (p && p.catch) p.catch(err => {
+      // Autoplay refused. Say so instead of failing silently, and pick it up on
+      // the next tap rather than losing the score for the whole match.
+      console.warn('[Nectar] music blocked by the browser (' + err.name +
+        '). Retrying on the next tap.');
+      musicPending = true;
+    });
+  }
+
+  function musicStop(fadeMs = 900) {
+    musicPending = false;
+    if (!musicEl) return;
+    if (!musicRouted) { try { musicEl.pause(); musicEl.currentTime = 0; } catch (e) {} return; }
+    if (!musicFade) return;
+    const t = ctx.currentTime;
+    musicFade.gain.cancelScheduledValues(t);
+    musicFade.gain.setValueAtTime(Math.max(musicFade.gain.value, 0.0001), t);
+    musicFade.gain.exponentialRampToValueAtTime(0.0001, t + fadeMs / 1000);
+    const el = musicEl;
+    setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, fadeMs + 60);
+  }
+
+  const musicTrack = () => (playlist && playlist[trackIdx]) || null;
+  // Warm the list up front so musicPlay() never has to await inside a gesture.
+  loadPlaylist();
+
+  // ── control ──
+  function setMuted(m) {
+    muted = !!m;
+    try { localStorage.setItem('nectarMuted', muted ? '1' : '0'); } catch (e) {}
+    if (ctx && master) {
+      const t = ctx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setTargetAtTime(muted ? 0.0001 : MASTER_LEVEL, t, 0.02);
+    }
+    // Off disk the music bypasses the graph, so the master gain can't reach it.
+    if (!musicRouted && musicEl) musicEl.volume = muted ? 0 : musicVol;
+    return muted;
+  }
+  const isMuted = () => muted;
+
+  function setVol(which, v) {
+    v = Math.max(0, Math.min(1, isFinite(v) ? v : 1));
+    if (which === 'sfx') {
+      sfxVol = v;
+      try { localStorage.setItem('nectarSfxVol', String(v)); } catch (e) {}
+      if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+    } else {
+      musicVol = v;
+      try { localStorage.setItem('nectarMusicVol', String(v)); } catch (e) {}
+      if (musicRouted) {
+        if (musicVolNode) musicVolNode.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+      } else if (musicEl) {
+        musicEl.volume = muted ? 0 : v;
+      }
+    }
+    return v;
+  }
+  const setSfxVolume   = v => setVol('sfx', v);
+  const setMusicVolume = v => setVol('music', v);
+  const sfxVolume      = () => sfxVol;
+  const musicVolume    = () => musicVol;
+
+  // Reserved for the score: pull the music bus down under a big effect, then
+  // let it back up. Nothing feeds musicBus yet.
+  function duck(amount = 0.45, ms = 600) {
+    if (!ctx || !musicBus) return;
+    const t = ctx.currentTime;
+    musicBus.gain.cancelScheduledValues(t);
+    musicBus.gain.setTargetAtTime(amount, t, 0.03);
+    musicBus.gain.setTargetAtTime(1, t + ms / 1000, 0.25);
+  }
+
+  // Browsers won't start audio until the player has interacted, and iOS
+  // suspends the context again whenever the tab goes to the background.
+  const unlock = () => {
+    init();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    // Music the browser refused earlier gets another go now that the player
+    // has definitely interacted.
+    if (musicPending) { musicPending = false; musicPlay(Math.max(trackIdx, 0)); }
+  };
+  ['pointerdown', 'keydown', 'touchstart'].forEach(e =>
+    window.addEventListener(e, unlock, { capture: true, passive: true }));
+
+  return { move, select, pickup, score, capture, aim, chain, boost, bloom,
+           dice, turn, denied, ui, win, setMuted, isMuted, duck, unlock,
+           musicPlay, musicStop, musicTrack,
+           setSfxVolume, setMusicVolume, sfxVolume, musicVolume };
+})();
+
+function toggleMute() {
+  const m = Sound.setMuted(!Sound.isMuted());
+  syncMuteBtn();
+  if (!m) Sound.ui('click');
+}
+function syncMuteBtn() {
+  const btn = document.getElementById('mute-btn');
+  if (!btn) return;
+  const m = Sound.isMuted();
+  btn.textContent = m ? '♪̸' : '♪';
+  btn.style.opacity = m ? '0.35' : '';
+}
+syncMuteBtn();   // the mute choice is remembered across sessions
+
+// ── OPTIONS ────────────────────────────────────────────────────
+// Both sliders write straight through to the audio graph and to localStorage,
+// so there is no Apply button and nothing to lose by walking away.
+(function initOptions() {
+  [['opt-sfx',   Sound.sfxVolume,   Sound.setSfxVolume,   true],
+   ['opt-music', Sound.musicVolume, Sound.setMusicVolume, false]].forEach(
+    ([id, get, set, audition]) => {
+      const slider = document.getElementById(id);
+      const readout = document.getElementById(id + '-val');
+      if (!slider || !readout) return;
+      const paint = v => { readout.textContent = Math.round(v * 100) + '%'; };
+      slider.value = Math.round(get() * 100);
+      paint(get());
+      slider.addEventListener('input', () => {
+        paint(set(slider.value / 100));
+      });
+      // A tick on release so you can hear the level you just chose. Music
+      // auditions itself — it is either playing or it isn't.
+      if (audition) slider.addEventListener('change', () => Sound.ui('click'));
+    });
+})();
+
+// ── SOUND TEST ─────────────────────────────────────────────────
+// ?soundtest=1 puts every cue behind a button. Sound design is iterative and
+// half of these are awkward to trigger by actually playing.
+if (location.search.includes('soundtest=1')) {
+  const cues = [
+    ['Move',      () => Sound.move(-3, 0, -2, 0)],
+    ['Move (R)',  () => Sound.move(3, 0, 2, 1)],
+    ['Move +wing', () => Sound.move(-3, 0, -2, 0, 0.16)],
+    ['Move −wing', () => Sound.move(-3, 0, -2, 0, 0.0)],
+    ['Select',    () => Sound.select(0, 0)],
+    ['Pickup 1',  () => Sound.pickup(1, 0, 0)],
+    ['Pickup 2',  () => Sound.pickup(2, 0, 0)],
+    ['Pickup 4',  () => Sound.pickup(4, 0, 0)],
+    ['Score',     () => Sound.score(6, 0, 0)],
+    ['Aim',       () => Sound.aim()],
+    ['CAPTURE',   () => Sound.capture(2, 0, -3, 2)],
+    ['Chain',     () => Sound.chain(-2, 0, 2, 0)],
+    ['Boost',     () => Sound.boost(0, 0)],
+    ['Bloom',     () => Sound.bloom(1, -2)],
+    ['Dice',      () => Sound.dice()],
+    ['Turn',      () => Sound.turn()],
+    ['Denied',    () => Sound.denied()],
+    ['UI click',  () => Sound.ui('click')],
+    ['UI back',   () => Sound.ui('back')],
+    ['WIN',       () => Sound.win()],
+    ['♫ Music',   () => Sound.musicPlay()],
+    ['♫ Stop',    () => Sound.musicStop()]
+  ];
+  const panel = document.createElement('div');
+  panel.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;display:flex;' +
+    'flex-wrap:wrap;gap:6px;max-width:340px;background:rgba(5,10,4,0.92);padding:10px;' +
+    'border:1px solid rgba(212,168,75,0.35)';
+  cues.forEach(([label, fn]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = "font-family:'Cinzel',serif;font-size:9px;letter-spacing:1px;padding:6px 8px;" +
+      'background:transparent;border:1px solid rgba(212,168,75,0.4);color:#d4a84b;cursor:pointer';
+    b.onclick = () => { Sound.unlock(); fn(); };
+    panel.appendChild(b);
+  });
+  document.body.appendChild(panel);
+}
+
+// Every button in the game shares one click sound, so nothing has to be wired
+// up per-button and new buttons get it for free.
+document.addEventListener('pointerdown', e => {
+  const btn = e.target.closest && e.target.closest('.menu-btn, .ctrl-btn, .player-btn, .ai-toggle, .hive-key');
+  if (!btn || btn.disabled) return;
+  if (btn.id === 'mute-btn') return;              // toggleMute makes its own noise
+  Sound.ui(/back|menu/i.test(btn.textContent || '') ? 'back' : 'click');
+}, true);
 
 // Ordered so the first four players get the four furthest-apart hues. The muted
 // versions of these washed out against the dark forest, so they run bright and
@@ -1274,6 +2058,9 @@ function startGame() {
   }
 
   showScreen(null);
+  // Kicked off from the Begin Game click, so it counts as a user gesture and
+  // the browser will let it start.
+  Sound.musicPlay();
   document.getElementById('hud').classList.remove('hidden');
 
   buildBoard(gameConfig.playerCount >= 4);
@@ -1355,6 +2142,7 @@ function triggerWeather() {
   const dice = document.getElementById('dice-display');
   dice.textContent = roll;
   dice.classList.add('rolling');
+  Sound.dice();
   setTimeout(()=>dice.classList.remove('rolling'), 600);
 
   let text = 'Nothing blooms';
@@ -1373,13 +2161,18 @@ function triggerWeather() {
 }
 
 function spawnNectar(value, type) {
+  const bloomed = [];
   hexMap.forEach((mesh, key) => {
     if (mesh.metadata.type !== type) return;
     const {q,r} = mesh.metadata;
     if (bees.find(b=>b.metadata.q===q&&b.metadata.r===r)) return;
     if (nectarTokens.find(n=>n.q===q&&n.r===r)) return;
     createNectarToken(q, r, value);
+    bloomed.push({q,r});
   });
+  // Staggered and after the dice have settled, so the blooms read as separate
+  // events across the board rather than one chord.
+  bloomed.forEach((h,i) => setTimeout(()=>Sound.bloom(h.q, h.r), 520 + i*130));
 }
 
 // ── BEE POSITIONING ────────────────────────────────────────────
@@ -1397,13 +2190,14 @@ function moveBeeToPos(beeMesh, q, r, animated=true) {
       BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
       BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
     const current = beeMesh.position.clone();
+    const frames = Math.round(60 * MOVE_ANIM_MS / 1000);
     anim.setKeys([
-      {frame:0,  value: current},
-      {frame:12, value: new BABYLON.Vector3(pos.x, BEE_Y+0.5, pos.z)},
-      {frame:24, value: new BABYLON.Vector3(pos.x, BEE_Y, pos.z)}
+      {frame:0,          value: current},
+      {frame:frames / 2, value: new BABYLON.Vector3(pos.x, BEE_Y+0.5, pos.z)},
+      {frame:frames,     value: new BABYLON.Vector3(pos.x, BEE_Y, pos.z)}
     ]);
     beeMesh.animations = [anim];
-    scene.beginAnimation(beeMesh, 0, 24, false);
+    scene.beginAnimation(beeMesh, 0, frames, false);
   } else {
     beeMesh.position.set(pos.x, BEE_Y, pos.z);
   }
@@ -1488,6 +2282,7 @@ function isValidAttackTarget(attackerData, tq, tr) {
 
 function selectBee(beeMesh) {
   deselectBee();
+  Sound.select(beeMesh.metadata.q, beeMesh.metadata.r);
   selectedBee = beeMesh;
   if (beeMesh.metadata.abdMat) {
     beeMesh.metadata.abdMat.emissiveColor = new BABYLON.Color3(0.55, 0.45, 0.12);
@@ -1528,6 +2323,8 @@ function deselectBee() {
 // ── MOVE EXECUTION ─────────────────────────────────────────────
 function executeMove(beeMesh, tq, tr) {
   clearHighlights();
+  const fromQ = beeMesh.metadata.q, fromR = beeMesh.metadata.r;
+  Sound.move(fromQ, fromR, tq, tr);
   beeMesh.metadata.q = tq;
   beeMesh.metadata.r = tr;
   beeMesh.metadata.remainingMoves--;
@@ -1544,6 +2341,9 @@ function executeMove(beeMesh, tq, tr) {
     nectarMeshes = nectarMeshes.filter(m=>m!==ntok.mesh);
     nectarTokens.splice(nIdx,1);
     updateTokenTower(beeMesh);
+    // Held back to the landing frame — the chime belongs to the touchdown, not
+    // to the moment the bee leaves the previous hex.
+    setTimeout(()=>Sound.pickup(ntok.value, tq, tr), MOVE_ANIM_MS * 0.95);
   }
 
   // Score if home
@@ -1555,6 +2355,7 @@ function executeMove(beeMesh, tq, tr) {
     updateTokenTower(beeMesh);
     updateScorePanel();
     spawnScoreParticle(tq, tr, gained, beeMesh.metadata.playerId);
+    setTimeout(()=>Sound.score(gained, tq, tr), MOVE_ANIM_MS * 0.95);
 
     if (players[beeMesh.metadata.playerId].score >= WIN_SCORE) {
       setTimeout(()=>showWin(beeMesh.metadata.playerId), 600);
@@ -1611,6 +2412,7 @@ function initiateCapture(attacker, defender) {
   if (spots.length === 1) { executeCapture(spots[0].q, spots[0].r); return; }
 
   actionMode = 'CAPTURE_HOME';
+  Sound.aim();
   spots.forEach(h => {
     const m = hexMap.get(`${h.q},${h.r}`);
     if (m) {
@@ -1644,6 +2446,7 @@ function executeCapture(homeQ, homeR) {
   updateTokenTower(attacker);
 
   const oldQ = defender.metadata.q, oldR = defender.metadata.r;
+  Sound.capture(oldQ, oldR, homeQ, homeR);
   moveBeeToPos(defender, homeQ, homeR);
   attacker.metadata.q = oldQ;
   attacker.metadata.r = oldR;
@@ -1751,6 +2554,8 @@ function executeChain(targetBee) {
   highlightValidMoves(source);
   updateBeePanel();
   setActionHint('Passing token…');
+  Sound.chain(source.metadata.q, source.metadata.r,
+              targetBee.metadata.q, targetBee.metadata.r);
 
   animateTokenFly(source, targetBee, val, () => {
     const targetPlayer = players[targetBee.metadata.playerId];
@@ -1759,6 +2564,7 @@ function executeChain(targetBee) {
       targetPlayer.score += val;
       updateScorePanel();
       spawnScoreParticle(targetBee.metadata.q, targetBee.metadata.r, val, targetBee.metadata.playerId);
+      Sound.score(val, targetBee.metadata.q, targetBee.metadata.r);
       if (targetPlayer.score >= WIN_SCORE) { setTimeout(()=>showWin(targetPlayer.id),600); return; }
     } else {
       targetBee.metadata.tokens.push(val);
@@ -1775,6 +2581,7 @@ function executeBoost(beeMesh, tokenIndex) {
   beeMesh.metadata.tokens.splice(tokenIndex,1);
   beeMesh.metadata.remainingMoves += val;
   updateTokenTower(beeMesh);
+  Sound.boost(beeMesh.metadata.q, beeMesh.metadata.r);
   clearHighlights();
   highlightValidMoves(beeMesh);
   if (IS_MOBILE) beeDetailsOpen = false; // the lit fields matter more than the panel now
@@ -2051,6 +2858,7 @@ function setActionHint(text, instructional=false) {
 let hintToken = 0;
 function flashHint(text, ms = 2200) {
   setActionHint(text);
+  Sound.denied();
   const mine = ++hintToken;
   setTimeout(() => { if (mine === hintToken) setActionHint(''); }, ms);
 }
@@ -2095,6 +2903,7 @@ function maybeAutoEndTurn() {
 function nextTurn() {
   if (!playerHasMovedThisTurn && playerHasActionsLeft()) return;
   autoEndPending = false;
+  Sound.turn();
   deselectBee();
   bees.forEach(b => { b.metadata.movedThisTurn=false; b.metadata.remainingMoves=1; });
   currentPlayerIndex = (currentPlayerIndex+1) % players.length;
@@ -2228,6 +3037,8 @@ function aiScoreMove(bee, tq, tr, player) {
 
 // ── WIN SCREEN ─────────────────────────────────────────────────
 function showWin(playerId) {
+  Sound.musicStop(1400);   // clear the air for the victory cue
+  Sound.win();
   document.getElementById('hud').classList.add('hidden');
   const screen = document.getElementById('win-screen');
   screen.classList.remove('hidden');
