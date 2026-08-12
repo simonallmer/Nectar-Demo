@@ -773,9 +773,10 @@ const Sound = (() => {
   // The wing is also quieter and darker than it was: this fires on every
   // single move, and it has to sit under an orchestral score without poking
   // through it.
-  // `wing` is how much bee is in it. 0 is pure air and contact; 0.16 is an
-  // audible buzz on every hop. It is a parameter because it is a taste call,
-  // and ?soundtest=1 offers all three so it can be settled by ear.
+  // `wing` is how much bee is in it: 0 is pure air and contact, MOVE_WING is
+  // the chosen default of an audible buzz on every hop. It stays a parameter
+  // because it is a taste call — ?soundtest=1 brackets the default either side
+  // so it can be nudged by ear later.
   function move(fq, fr, tq, tr, wing = MOVE_WING) {
     if (!ready() || !budget(4)) return;
     const t = ctx.currentTime + rnd(0.004, 0.022);
@@ -1025,7 +1026,7 @@ const Sound = (() => {
   //
   // The two gains are separate on purpose: duck() owns musicBus and nothing
   // else touches it, so a duck landing mid-fade can't fight the fade.
-  const MOVE_WING = 0.075;   // see move() — how much buzz is in a hop
+  const MOVE_WING = 0.16;    // see move() — how much buzz is in a hop
 
   // If playlist.json can't be fetched, fall back to the shipped track rather
   // than going silent. Opening index.html straight off disk does exactly that:
@@ -1230,8 +1231,9 @@ if (location.search.includes('soundtest=1')) {
   const cues = [
     ['Move',      () => Sound.move(-3, 0, -2, 0)],
     ['Move (R)',  () => Sound.move(3, 0, 2, 1)],
-    ['Move +wing', () => Sound.move(-3, 0, -2, 0, 0.16)],
-    ['Move −wing', () => Sound.move(-3, 0, -2, 0, 0.0)],
+    // Bracketing the chosen default, so it stays A/B-able if it wants nudging.
+    ['Move +wing', () => Sound.move(-3, 0, -2, 0, 0.26)],
+    ['Move −wing', () => Sound.move(-3, 0, -2, 0, 0.075)],
     ['Select',    () => Sound.select(0, 0)],
     ['Pickup 1',  () => Sound.pickup(1, 0, 0)],
     ['Pickup 2',  () => Sound.pickup(2, 0, 0)],
