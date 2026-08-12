@@ -300,7 +300,7 @@ body.mobile .hive-done p{font-size:12px}
 <!-- PLAYER NAMES -->
 <div id="screen-names" class="screen hidden">
   <div class="game-title" style="font-size:clamp(28px,4vw,48px);margin-bottom:6px">SETUP</div>
-  <div class="game-subtitle">Name your colony · Toggle AI</div>
+  <div class="game-subtitle">Name your colony · Toggle CPU</div>
   <div class="forest-divider"></div>
   <div class="names-grid" id="names-grid"></div>
   <button class="menu-btn" onclick="startGame()">Begin Game</button>
@@ -655,11 +655,20 @@ function buildNamesForm(n) {
     // The placeholder name is still "untouched" until the player types: the
     // first keystroke wipes it entirely instead of merging into it.
     inp.dataset.pristine = '1';
+    // While the name is still the untouched default the caret parks on the far
+    // left, so it reads as a placeholder you type *in front of* rather than a
+    // value you have to delete. Browsers move the caret to the click position
+    // after focus, hence the deferred re-park and the mouseup guard.
+    const caretHome = () => { try { inp.setSelectionRange(0, 0); } catch (e) {} };
     inp.addEventListener('focus', () => {
       if (inp.dataset.pristine === '1') {
-        inp.select();
+        caretHome();
+        setTimeout(caretHome, 0);
         inp.classList.add('default-active');
       }
+    });
+    inp.addEventListener('mouseup', e => {
+      if (inp.dataset.pristine === '1') { e.preventDefault(); caretHome(); }
     });
     inp.addEventListener('keydown', e => {
       if (inp.dataset.pristine === '1' && (e.key === 'Backspace' || e.key === 'Delete')) {
@@ -691,16 +700,30 @@ function buildNamesForm(n) {
     const ai = document.createElement('button');
     ai.className = 'ai-toggle';
     ai.id = `ai-toggle-${i}`;
-    ai.dataset.on = '0';
-    ai.textContent = 'Human';
-    ai.onclick = () => {
-      const on = ai.dataset.on === '1';
-      ai.dataset.on = on ? '0' : '1';
-      ai.textContent = on ? 'Human' : 'AI';
-      ai.classList.toggle('on', !on);
-      if (!on) { inp.value = `AI Bee ${i+1}`; inp.disabled = true; }
-      else { inp.disabled = false; }
+    // Switching to CPU parks whatever the player had typed, so flipping back
+    // and forth doesn't cost them their name.
+    const setCPU = (on) => {
+      ai.dataset.on = on ? '1' : '0';
+      ai.textContent = on ? 'CPU' : 'Human';
+      ai.classList.toggle('on', on);
+      inp.disabled = on;
+      inp.classList.remove('default-active');
+      if (on) {
+        if (inp.dataset.pristine !== '1') inp.dataset.humanVal = inp.value;
+        inp.value = `CPU ${i+1}`;
+        inp.dataset.pristine = '1';
+      } else if (inp.dataset.humanVal) {
+        inp.value = inp.dataset.humanVal;
+        inp.dataset.pristine = '0';
+      } else {
+        inp.value = inp.dataset.defaultVal;
+        inp.dataset.pristine = '1';
+      }
     };
+    ai.onclick = () => setCPU(ai.dataset.on !== '1');
+    // Everyone but player 1 starts as a CPU opponent — the common case is one
+    // person sitting down against the computer.
+    setCPU(i > 0);
     row.appendChild(dot);
     row.appendChild(inp);
     row.appendChild(ai);
@@ -1440,6 +1463,17 @@ function isValidMoveTarget(beeData, tq, tr) {
   return true;
 }
 
+// A captured bee is sent back to one of its own honeycomb hexes, so a capture
+// needs somewhere to put it. The defender's own hex counts as taken, which is
+// what we want: it can never be "sent home" to where it already stands.
+function freeHomeHexes(playerId) {
+  const p = players[playerId];
+  if (!p) return [];
+  return p.homeCorners.filter(h =>
+    hexMap.has(`${h.q},${h.r}`) &&
+    !bees.some(b => b.metadata.q === h.q && b.metadata.r === h.r));
+}
+
 function isValidAttackTarget(attackerData, tq, tr) {
   if (attackerData.remainingMoves <= 0) return false;
   if (hexDist(attackerData, {q:tq,r:tr}) !== 1) return false;
@@ -1447,6 +1481,8 @@ function isValidAttackTarget(attackerData, tq, tr) {
   if (!defender) return false;
   if (defender.metadata.playerId === attackerData.playerId) return false;
   if (defender.metadata.tokens.length === 0) return false;
+  // Without a free home hex the capture would dead-end halfway through.
+  if (freeHomeHexes(defender.metadata.playerId).length === 0) return false;
   return true;
 }
 
@@ -1558,12 +1594,24 @@ function spawnScoreParticle(q, r, val, playerId) {
 // ── CAPTURE ────────────────────────────────────────────────────
 function initiateCapture(attacker, defender) {
   clearHighlights();
-  captureData = { attacker, defender };
-  actionMode = 'CAPTURE_HOME';
+  const spots = freeHomeHexes(defender.metadata.playerId);
+  if (spots.length === 0) {
+    // Guarded by isValidAttackTarget, but never strand the player in a mode
+    // with nothing to tap.
+    actionMode = 'SELECT';
+    captureData = null;
+    flashHint('Their honeycomb is full — no room to send them home');
+    return;
+  }
 
-  // Highlight victim's home hexes
-  const vPlayer = players[defender.metadata.playerId];
-  vPlayer.homeCorners.forEach(h => {
+  captureData = { attacker, defender, spots };
+
+  // One free hex means there is nothing to choose — the extra tap only ever
+  // confused things, so the capture resolves right away.
+  if (spots.length === 1) { executeCapture(spots[0].q, spots[0].r); return; }
+
+  actionMode = 'CAPTURE_HOME';
+  spots.forEach(h => {
     const m = hexMap.get(`${h.q},${h.r}`);
     if (m) {
       m.material.emissiveColor = new BABYLON.Color3(0.8,0.1,0.1);
@@ -1572,6 +1620,16 @@ function initiateCapture(attacker, defender) {
   });
 
   setActionHint('Choose enemy\'s honeycomb to send them home');
+}
+
+// Cancels a capture that was started but never landed, so a stray tap can't
+// lock the board into CAPTURE_HOME.
+function cancelCapture(msg) {
+  clearHighlights();
+  captureData = null;
+  actionMode = 'SELECT';
+  deselectBee();
+  if (msg) flashHint(msg);
 }
 
 function executeCapture(homeQ, homeR) {
@@ -1821,15 +1879,16 @@ function onTap(px, py) {
   }
 
   // ── CAPTURE HOME mode ──
-  if (actionMode==='CAPTURE_HOME' && hexMesh?.metadata) {
-    const {q,r} = hexMesh.metadata;
-    const victim = captureData?.defender;
-    if (!victim) { clearHighlights(); actionMode='SELECT'; return; }
-    const vPlayer = players[victim.metadata.playerId];
-    if (vPlayer.homeCorners.some(h=>h.q===q&&h.r===r)) {
-      const occupied = bees.find(b=>b.metadata.q===q&&b.metadata.r===r);
-      if (!occupied) executeCapture(q, r);
+  if (actionMode==='CAPTURE_HOME') {
+    const spots = captureData?.spots || [];
+    if (!captureData?.defender || !spots.length) { cancelCapture(); return; }
+    if (hexMesh?.metadata) {
+      const {q,r} = hexMesh.metadata;
+      const isSpot = spots.some(h=>h.q===q&&h.r===r);
+      const occupied = bees.some(b=>b.metadata.q===q&&b.metadata.r===r);
+      if (isSpot && !occupied) { executeCapture(q, r); return; }
     }
+    cancelCapture('Attack cancelled');
     return;
   }
 
@@ -1854,10 +1913,20 @@ function onTap(px, py) {
       selectBee(beeMesh);
       return;
     } else {
-      // Enemy bee — attack?
-      if (selectedBee && isValidAttackTarget(selectedBee.metadata, beeMesh.metadata.q, beeMesh.metadata.r)) {
+      // Enemy bee — attack? A tap that can't become an attack used to do
+      // nothing at all, which read as the game ignoring the tap; say why.
+      const d = beeMesh.metadata;
+      if (!selectedBee) { flashHint('Select one of your bees first'); return; }
+      if (isValidAttackTarget(selectedBee.metadata, d.q, d.r)) {
         initiateCapture(selectedBee, beeMesh);
+        return;
       }
+      const a = selectedBee.metadata;
+      if (hexDist(a, {q:d.q, r:d.r}) !== 1)   flashHint('Move next to them first');
+      else if (a.remainingMoves <= 0)          flashHint('That bee has already moved');
+      else if (d.tokens.length === 0)          flashHint('They carry no nectar — nothing to steal');
+      else if (freeHomeHexes(d.playerId).length === 0)
+        flashHint('Their honeycomb is full — no room to send them home');
       return;
     }
   }
@@ -1975,6 +2044,15 @@ function setActionHint(text, instructional=false) {
   if (IS_MOBILE) text = instructional ? '' : text.replace(/\bClick\b/g, 'Tap').replace(/\bclick\b/g, 'tap');
   hint.textContent = text;
   hint.style.display = text ? 'block' : 'none';
+}
+
+// Short-lived feedback ("why didn't that work?"). A newer hint always wins, so
+// an expiring one never wipes the message that replaced it.
+let hintToken = 0;
+function flashHint(text, ms = 2200) {
+  setActionHint(text);
+  const mine = ++hintToken;
+  setTimeout(() => { if (mine === hintToken) setActionHint(''); }, ms);
 }
 
 // ── TURN MANAGEMENT ────────────────────────────────────────────
