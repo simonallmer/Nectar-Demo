@@ -484,7 +484,11 @@ body.mobile .hive-done p{font-size:12px}
       <p>Done moving? Hit <strong>Finish Turn</strong>.</p>
     </div>
 
-    <button class="menu-btn" onclick="closeHowTo()">Start Playing</button>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px">
+      <button id="howto-resume" class="menu-btn" onclick="closeHowTo()">Start Playing</button>
+      <button id="howto-menu" class="menu-btn" onclick="howToMenu()" style="display:none;font-size:11px;min-width:140px">Menu</button>
+      <button id="howto-end" class="menu-btn danger" onclick="location.reload()" style="display:none;font-size:11px;min-width:140px">End Game</button>
+    </div>
   </div>
 </div>
 
@@ -1400,7 +1404,29 @@ if (IS_MOBILE) {
 
 // ── HOW TO PLAY (phones) ───────────────────────────────────────
 const HOWTO_SEEN_KEY = 'nectarHowToSeen';
-function showHowTo()  { document.getElementById('screen-howto').classList.remove('hidden'); }
+function showHowTo()  {
+  syncHowToButtons();
+  document.getElementById('screen-howto').classList.remove('hidden');
+}
+
+// The “?” reopens this mid-match as well as on the first turn, so the buttons
+// have to say what they actually do. Once a game is running, closing the sheet
+// resumes it, and the pause menu's other two ways out belong here too.
+function syncHowToButtons() {
+  const resume = document.getElementById('howto-resume');
+  if (!resume) return;
+  resume.textContent = gameStarted ? 'Resume' : 'Start Playing';
+  const inGame = gameStarted ? '' : 'none';
+  ['howto-menu', 'howto-end'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.style.display = inGame;
+  });
+}
+
+// This sheet is not a `.screen`, so showScreen() cannot clear it — leaving for
+// the menu has to close it explicitly or it hangs over the main menu.
+function howToMenu() { closeHowTo(); exitToMenu(); }
+
 function closeHowTo() {
   document.getElementById('screen-howto').classList.add('hidden');
   try { sessionStorage.setItem(HOWTO_SEEN_KEY, '1'); } catch(e) {}
@@ -2882,11 +2908,19 @@ function playerHasActionsLeft(pIdx = currentPlayerIndex) {
 
 // Pass-and-play needs a beat for the device to change hands, so a dead-ended
 // turn only closes itself when the current player is the only human in the game.
+// The match is over once the win screen is up. Turns used to keep cycling
+// behind it — with only humans nobody noticed, because nobody was there to take
+// them, but the computer happily went on raiding an already-won game forever.
+function isGameOver() {
+  const w = document.getElementById('win-screen');
+  return !!w && !w.classList.contains('hidden');
+}
+
 let autoEndPending = false;
 function maybeAutoEndTurn() {
   if (!gameStarted || isAITurn || autoEndPending) return;
   if (players[currentPlayerIndex]?.isAI) return;
-  if (!document.getElementById('win-screen').classList.contains('hidden')) return;
+  if (isGameOver()) return;
   if (playerHasActionsLeft()) return;
 
   const soloHuman = players.filter(p => !p.isAI).length <= 1;
@@ -2903,6 +2937,7 @@ function maybeAutoEndTurn() {
 }
 
 function nextTurn() {
+  if (isGameOver()) return;
   if (!playerHasMovedThisTurn && playerHasActionsLeft()) return;
   autoEndPending = false;
   Sound.turn();
@@ -2927,113 +2962,285 @@ function scheduleAITurn() {
   setTimeout(()=>runAITurn(), 900 + Math.random()*600);
 }
 
+// A turn is a loop, not a plan: pick the single best action available right now,
+// do it, then look again. It has to work this way because a chain or a capture
+// rearranges the board underneath any plan made in advance — and because ranking
+// every option against every other is the only way "get to ten points" can
+// outrank "go and hit someone", which was the whole problem with planning a raid
+// first and fitting the rest of the turn around it.
+const AI_MAX_ACTIONS = 14;   // a turn cannot loop forever
+
 function runAITurn() {
   const player = players[currentPlayerIndex];
-  if (!player?.isAI) { isAITurn=false; return; }
-
-  const myBees = bees.filter(b=>b.metadata.playerId===currentPlayerIndex);
-  let moved = false;
-
-  // Evaluate and execute best move for each bee
-  const movePlan = computeAIMoves(player, myBees);
-  let delay = 0;
-  movePlan.forEach(plan => {
-    if (!plan) return;
-    setTimeout(() => {
-      executeMove(plan.bee, plan.tq, plan.tr);
-      moved = true;
-    }, delay);
-    delay += 500;
-  });
-
-  setTimeout(() => {
-    if (!playerHasMovedThisTurn) {
-      // Fallback: move any bee that can move
-      const fallback = myBees.find(b=>b.metadata.remainingMoves>0);
-      if (fallback) {
-        const moves = getNeighbors(fallback.metadata.q, fallback.metadata.r)
-          .filter(n=>isValidMoveTarget(fallback.metadata, n.q, n.r));
-        if (moves.length) executeMove(fallback, moves[0].q, moves[0].r);
-      }
-    }
-    isAITurn = false;
-    document.getElementById('ai-thinking').textContent = '';
-    setTimeout(()=>nextTurn(), 600);
-  }, delay + 600);
+  if (!player?.isAI || isGameOver()) { isAITurn = false; return; }
+  aiStep(player, 0);
 }
 
-function computeAIMoves(player, myBees) {
-  const plans = [];
-  const used = new Set();
+function aiStep(player, taken) {
+  if (isGameOver() || currentPlayerIndex !== player.id) { endAITurn(); return; }
+  const myBees = bees.filter(b => b.metadata.playerId === player.id);
+  const action = taken < AI_MAX_ACTIONS ? bestAIAction(player, myBees) : null;
+  if (!action) { endAITurn(myBees); return; }
+  runAIAction(action, wait => setTimeout(() => aiStep(player, taken + 1), wait));
+}
 
-  // Sort bees: carrying tokens first, then by score value
-  const sorted = [...myBees].sort((a,b) => {
-    const aVal = a.metadata.tokens.reduce((s,v)=>s+v,0);
-    const bVal = b.metadata.tokens.reduce((s,v)=>s+v,0);
-    return bVal - aVal;
-  });
+// `done` is handed the beat to wait before the next decision, because a raid
+// takes several animations and a flying token has to land.
+function runAIAction(action, done) {
+  if (action.kind === 'move') {
+    executeMove(action.bee, action.q, action.r);
+    done(430);
+  } else if (action.kind === 'chain') {
+    initiateChain(action.bee, action.idx);
+    executeChain(action.target);
+    done(950);
+  } else if (action.kind === 'raid') {
+    let d = 0;
+    action.steps.forEach(step => { setTimeout(step, d); d += 430; });
+    done(d + 350);
+  } else {
+    done(200);
+  }
+}
 
-  sorted.forEach(bee => {
-    if (bee.metadata.remainingMoves <= 0) return;
-    const candidates = getNeighbors(bee.metadata.q, bee.metadata.r)
-      .filter(n => isValidMoveTarget(bee.metadata, n.q, n.r) && !used.has(`${n.q},${n.r}`));
-    if (!candidates.length) return;
+function endAITurn(myBees) {
+  // Nothing was worth doing, but the turn still has to move on and nextTurn()
+  // refuses while a move is still on the table.
+  if (myBees && !playerHasMovedThisTurn) {
+    const stuck = myBees.find(b => b.metadata.remainingMoves > 0 &&
+      getNeighbors(b.metadata.q, b.metadata.r).some(n => isValidMoveTarget(b.metadata, n.q, n.r)));
+    if (stuck) {
+      const to = getNeighbors(stuck.metadata.q, stuck.metadata.r)
+        .find(n => isValidMoveTarget(stuck.metadata, n.q, n.r));
+      executeMove(stuck, to.q, to.r);
+    }
+  }
+  isAITurn = false;
+  document.getElementById('ai-thinking').textContent = '';
+  setTimeout(() => nextTurn(), 600);
+}
 
-    let best = null, bestScore = -Infinity;
-    candidates.forEach(c => {
-      const s = aiScoreMove(bee, c.q, c.r, player);
-      if (s > bestScore) { bestScore=s; best=c; }
+// ── AI RAIDS ───────────────────────────────────────────────────
+// The computer used to be pacifist: it walked to nectar, walked home, and never
+// once took a swing. Now a loaded enemy bee with nothing standing in the way is
+// a target, and it will spend its own nectar on a Boost to reach one when the
+// haul is worth more than the fuel.
+//
+// "Protected" falls out of the pathfinding rather than being a special case: a
+// capture needs the raider standing on a hex next to the carrier, so a bee
+// parked in the gap is occupying the ground the raid needs, and the route
+// search simply doesn't find a way in.
+
+// Hexes the raider could actually stand on. Same rules as isValidMoveTarget
+// minus the move budget, which the caller accounts for separately.
+function aiCanStep(raiderData, q, r) {
+  const m = hexMap.get(`${q},${r}`);
+  if (!m) return false;
+  if (bees.some(b => b.metadata.q === q && b.metadata.r === r)) return false;
+  if (m.metadata.type === 'honeycomb' && m.metadata.owner !== raiderData.playerId) return false;
+  return true;
+}
+
+// Shortest walk to any hex adjacent to the victim. [] means already in range,
+// null means there is no way through — boxed in, or the carrier is shielded.
+function aiRouteToStrike(raider, victim) {
+  const from = { q: raider.metadata.q, r: raider.metadata.r };
+  const goal = { q: victim.metadata.q, r: victim.metadata.r };
+  if (hexDist(from, goal) === 1) return [];
+
+  const MAX = 4;   // one move plus the biggest Boost is five actions, and the
+                   // last one has to be the strike
+  const seen = new Set([`${from.q},${from.r}`]);
+  let frontier = [{ q: from.q, r: from.r, path: [] }];
+  while (frontier.length) {
+    const next = [];
+    for (const cur of frontier) {
+      for (const n of getNeighbors(cur.q, cur.r)) {
+        const key = `${n.q},${n.r}`;
+        if (seen.has(key) || !aiCanStep(raider.metadata, n.q, n.r)) continue;
+        seen.add(key);
+        const path = cur.path.concat([{ q: n.q, r: n.r }]);
+        if (hexDist(n, goal) === 1) return path;
+        if (path.length < MAX) next.push({ q: n.q, r: n.r, path });
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+// Nectar in hand is not a point yet — it has to survive the walk to a honeycomb.
+// Everything the computer values is expressed against this, so a certain point
+// always beats a probable one.
+const AI_P_DELIVER = 0.65;
+
+// Raids, priced like everything else. Stolen nectar still has to be walked home,
+// so it takes the same discount as nectar picked off the board. Against that, a
+// capture also strips the victim's load and marches them back to their own
+// honeycomb, which is worth real ground in a race to WIN_SCORE.
+function aiRaidOptions(player, myBees) {
+  const out = [];
+  const victims = bees.filter(b =>
+    b.metadata.playerId !== player.id &&
+    b.metadata.tokens.length > 0 &&
+    freeHomeHexes(b.metadata.playerId).length > 0);
+  if (!victims.length) return out;
+
+  victims.forEach(victim => {
+    const prize = victim.metadata.tokens.reduce((s,v)=>s+v,0);
+    myBees.forEach(raider => {
+      if (raider.metadata.remainingMoves <= 0) return;
+      const path = aiRouteToStrike(raider, victim);
+      if (!path) return;                        // no way in: boxed out, or shielded
+
+      const need = path.length + 1;             // the walk plus the sting
+      const have = raider.metadata.remainingMoves;
+      let boostIdx = -1, cost = 0;
+      if (need > have) {
+        const fuel = raider.metadata.tokens
+          .map((v, i) => ({ v, i }))
+          .filter(o => have + o.v >= need)
+          .sort((a, b) => a.v - b.v);           // cheapest token that gets there
+        if (!fuel.length) return;
+        boostIdx = fuel[0].i;
+        cost = fuel[0].v;
+      }
+
+      const score = prize * 100 * AI_P_DELIVER    // what we might bank
+                  + prize * 35                    // what they lose for certain
+                  - cost  * 100 * AI_P_DELIVER    // the fuel we burn to get there
+                  - path.length * 5;              // and the walk
+      if (score <= 0) return;
+      out.push({ kind:'raid', score, steps: aiRaidSteps(raider, victim, path, boostIdx) });
     });
+  });
+  return out;
+}
 
-    if (best) {
-      used.add(`${best.q},${best.r}`);
-      plans.push({ bee, tq:best.q, tr:best.r });
+function aiRaidSteps(raider, victim, path, boostIdx) {
+  const steps = [];
+  if (boostIdx >= 0) steps.push(() => {
+    if (raider.metadata.tokens[boostIdx] !== undefined) executeBoost(raider, boostIdx);
+  });
+  path.forEach(p => steps.push(() => {
+    if (raider.metadata.remainingMoves > 0 && isValidMoveTarget(raider.metadata, p.q, p.r)) {
+      executeMove(raider, p.q, p.r);
+    }
+  }));
+  steps.push(() => {
+    const vq = victim.metadata.q, vr = victim.metadata.r;
+    if (!isValidAttackTarget(raider.metadata, vq, vr)) return;   // the board moved on
+    initiateCapture(raider, victim);
+    // One free honeycomb hex resolves itself; more than one waits for a tap the
+    // computer will never make, so it picks the hex that costs the victim most.
+    if (actionMode === 'CAPTURE_HOME' && captureData) {
+      let far = captureData.spots[0], fd = -1;
+      captureData.spots.forEach(h => {
+        const d = hexDist(h, { q: vq, r: vr });
+        if (d > fd) { fd = d; far = h; }
+      });
+      executeCapture(far.q, far.r);
     }
   });
+  return steps;
+}
 
-  return plans;
+// Every action available right now, on one scale: hundredths of a point of
+// expected score. Banking is certain so it wins; a chain into the honeycomb is
+// certain *and* costs no move, so it wins harder; a raid is discounted for the
+// trip home and sits on the list as one option among the rest.
+function bestAIAction(player, myBees) {
+  const cands = [];
+  const distHome = p => player.homeCorners.reduce((m,c)=>Math.min(m,hexDist(p,c)), Infinity);
+  const atHome   = p => player.homeCorners.some(c=>c.q===p.q&&c.r===p.r);
+
+  myBees.forEach(bee => {
+    const md = bee.metadata;
+
+    // Chains spend no move at all, which is exactly what makes them the fastest
+    // way to bank: a token handed down a line of touching bees to one standing in
+    // the honeycomb scores on the spot, from anywhere on the board.
+    if (md.tokens.length) {
+      const connected = getConnectedFriendlyBees(bee);
+      const myDist = distHome(md);
+      md.tokens.forEach((val, idx) => {
+        connected.forEach(target => {
+          if (atHome(target.metadata)) {
+            cands.push({ kind:'chain', bee, idx, target, score: val * 100 + 50 });
+          } else {
+            // Still worth doing as a relay — it hands the load to whoever is
+            // nearer home, which is how a bucket brigade gets built in the first
+            // place.
+            const closer = myDist - distHome(target.metadata);
+            if (closer > 0) cands.push({ kind:'chain', bee, idx, target, score: val * 20 * closer + 20 });
+          }
+        });
+      });
+    }
+
+    if (md.remainingMoves <= 0) return;
+    getNeighbors(md.q, md.r).forEach(n => {
+      if (!isValidMoveTarget(md, n.q, n.r)) return;
+      cands.push({ kind:'move', bee, q:n.q, r:n.r, score: aiScoreMove(bee, n.q, n.r, player) });
+    });
+  });
+
+  aiRaidOptions(player, myBees).forEach(r => cands.push(r));
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.score - a.score);
+  return cands[0].score > 0 ? cands[0] : null;
 }
 
 function aiScoreMove(bee, tq, tr, player) {
+  const md = bee.metadata;
+  const carrying = md.tokens.reduce((s,v)=>s+v,0);
+  const to = { q: tq, r: tr };
+  const distHome = p => player.homeCorners.reduce((m,c)=>Math.min(m,hexDist(p,c)), Infinity);
   let score = 0;
-  const carrying = bee.metadata.tokens.reduce((s,v)=>s+v,0);
 
-  // Scoring: going home with tokens = very good
-  const isHome = player.homeCorners.some(h=>h.q===tq&&h.r===tr);
-  if (isHome && carrying > 0) score += 1000 + carrying*100;
+  // Certain points. Nothing on the board beats walking a load into the honeycomb.
+  if (player.homeCorners.some(h=>h.q===tq&&h.r===tr) && carrying > 0) {
+    score += carrying * 100 + 40;
+  }
 
-  // Picking up nectar
+  // Nectar picked up is only worth what survives the walk back.
   const onNectar = nectarTokens.find(n=>n.q===tq&&n.r===tr);
-  if (onNectar) score += 200 + onNectar.value*50;
+  if (onNectar) score += onNectar.value * 100 * AI_P_DELIVER;
 
-  // Moving toward nectar
-  let minNectarDist = Infinity;
-  nectarTokens.forEach(n => {
-    const d = hexDist({q:tq,r:tr}, n);
-    if (d < minNectarDist) minNectarDist = d;
-  });
-  score += Math.max(0, 10-minNectarDist)*8;
-
-  // Moving toward home when carrying
+  // Closing on the two things that pay.
+  if (carrying === 0 && nectarTokens.length) {
+    let nearest = Infinity;
+    nectarTokens.forEach(n => { const d = hexDist(to, n); if (d < nearest) nearest = d; });
+    score += Math.max(0, 9 - nearest) * 7;
+  }
   if (carrying > 0) {
-    let minHomeDist = Infinity;
-    player.homeCorners.forEach(h => {
-      const d = hexDist({q:tq,r:tr}, h);
-      if (d < minHomeDist) minHomeDist = d;
-    });
-    const curDist = player.homeCorners.reduce((min,h)=>Math.min(min,hexDist(bee.metadata,h)),Infinity);
-    if (minHomeDist < curDist) score += 60 * carrying;
+    const gain = distHome(md) - distHome(to);
+    score += gain > 0 ? carrying * 22 : -carrying * 6;   // dithering with a load gets you robbed
   }
 
-  // Avoid being captured (moving away from enemies carrying tokens)
+  // Don't park a load within reach of someone who can take it.
   if (carrying > 0) {
-    bees.filter(b=>b.metadata.playerId!==currentPlayerIndex).forEach(enemy => {
-      if (hexDist({q:tq,r:tr}, enemy.metadata) <= 1) score -= 80;
+    bees.forEach(b => {
+      if (b.metadata.playerId === md.playerId) return;
+      if (hexDist(to, b.metadata) <= 1) score -= carrying * 18;
     });
   }
 
-  // Random nudge for variety
-  score += Math.random()*10;
+  // Empty-handed, drifting towards a loaded enemy sets up a raid the scorer can
+  // finish next turn. A nudge, not a mission — at four times this weight three
+  // computers hunted each other so relentlessly that nectar ping-ponged between
+  // raiders and nobody banked anything.
+  if (carrying === 0) {
+    bees.forEach(b => {
+      if (b.metadata.playerId === md.playerId || !b.metadata.tokens.length) return;
+      const prize = b.metadata.tokens.reduce((s,v)=>s+v,0);
+      const d = hexDist(to, b.metadata);
+      if (d === 1)     score += 20 + prize * 5;
+      else if (d <= 3) score += (4 - d) * 3 + prize * 2;
+    });
+  }
+
+  score += Math.random() * 6;   // stops repeat games playing out identically
   return score;
 }
 
