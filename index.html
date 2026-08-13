@@ -1036,7 +1036,10 @@ const Sound = (() => {
   // than going silent. Opening index.html straight off disk does exactly that:
   // file:// blocks fetch, while an <audio> element can still load a relative
   // path — which is why the effects would work and the score wouldn't.
-  const FALLBACK_TRACKS = [{ file: '01-march-of-the-bees.mp3', title: 'March of the Bees' }];
+  const FALLBACK_TRACKS = [
+    { file: '01-march-of-the-bees.mp3', title: 'March of the Bees' },
+    { file: '02-night-flight.mp3',      title: 'Night Flight' }
+  ];
 
   // A media element loaded from file:// is opaque to Web Audio — routing it
   // through the graph produces silence, which is exactly the shape of "the
