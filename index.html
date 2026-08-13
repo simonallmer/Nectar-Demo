@@ -1038,7 +1038,7 @@ const Sound = (() => {
   // path — which is why the effects would work and the score wouldn't.
   const FALLBACK_TRACKS = [
     { file: '01-march-of-the-bees.mp3', title: 'March of the Bees' },
-    { file: '02-night-flight.mp3',      title: 'Night Flight' }
+    { file: '02-nocturnal-temptations.mp3', title: 'Nocturnal Temptations' }
   ];
 
   // A media element loaded from file:// is opaque to Web Audio — routing it
@@ -1048,7 +1048,20 @@ const Sound = (() => {
   // isn't. Over http the graph does the work as normal.
   const musicRouted = location.protocol !== 'file:';
 
-  let musicEl = null, musicFade = null, playlist = null, trackIdx = -1, musicPending = false;
+  let musicEl = null, musicFade = null, playlist = null, musicPending = false;
+  // `playlist` is the library; `musicOrder` is the shuffled running order for
+  // this sitting, and trackIdx is a position in that order rather than in the
+  // library itself.
+  let musicOrder = [], trackIdx = -1;
+
+  function shuffledOrder(n) {
+    const a = [...Array(n).keys()];
+    for (let i = a.length - 1; i > 0; i--) {      // Fisher-Yates
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
   async function loadPlaylist() {
     if (playlist) return playlist;
@@ -1068,18 +1081,26 @@ const Sound = (() => {
   // Synchronous once the playlist is in memory, which is why it gets warmed up
   // at load: iOS Safari only honours .play() when it is called in the same tick
   // as the tap, and awaiting a fetch first would lose the gesture.
-  function musicPlay(from = 0) {
-    if (!playlist) { loadPlaylist().then(() => musicPlay(from)); return; }
-    if (!playlist[from] || !init()) return;
+  // `pos` is a position in the running order, not a track number.
+  function musicPlay(pos = 0) {
+    if (!playlist) { loadPlaylist().then(() => musicPlay(pos)); return; }
+    // Starting from the top means a new sitting, so deal a fresh order — the
+    // same piece opening every single game gets old fast. It is still one pass
+    // through the library: nothing repeats, and it ends in silence.
+    if (pos === 0 || musicOrder.length !== playlist.length) {
+      musicOrder = shuffledOrder(playlist.length);
+    }
+    const track = playlist[musicOrder[pos]];
+    if (!track || !init()) return;
     if (ctx.state === 'suspended') ctx.resume();
-    trackIdx = from;
+    trackIdx = pos;
 
     if (!musicEl) {
       musicEl = new Audio();
       musicEl.preload = 'auto';
       // One track, then the next, then silence. It never loops back round.
       musicEl.addEventListener('ended', () => {
-        if (trackIdx + 1 < playlist.length) musicPlay(trackIdx + 1);
+        if (trackIdx + 1 < musicOrder.length) musicPlay(trackIdx + 1);
       });
       musicEl.addEventListener('error', () => {
         const e = musicEl.error;
@@ -1093,7 +1114,7 @@ const Sound = (() => {
       }
     }
 
-    musicEl.src = 'audio/music/' + encodeURIComponent(playlist[trackIdx].file);
+    musicEl.src = 'audio/music/' + encodeURIComponent(track.file);
     if (musicRouted) {
       const t = ctx.currentTime;
       musicFade.gain.cancelScheduledValues(t);
@@ -1126,7 +1147,7 @@ const Sound = (() => {
     setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, fadeMs + 60);
   }
 
-  const musicTrack = () => (playlist && playlist[trackIdx]) || null;
+  const musicTrack = () => (playlist && playlist[musicOrder[trackIdx]]) || null;
   // Warm the list up front so musicPlay() never has to await inside a gesture.
   loadPlaylist();
 
