@@ -401,6 +401,50 @@ function startExpirationChecker() {
     }, 1000);
 }
 
+// ── STRAIGHT INTO A GAME ───────────────────────────────────────
+// The arcade build opens on its menus. The demo has ten minutes a day and
+// spends none of them on setup: a visitor lands directly in a three-player
+// match against two computers. The rules sheet stands in for the setup screens,
+// and the score is held back until they have read it and tapped through — music
+// playing underneath the info text was the wrong first impression.
+//
+// This lives here rather than in index.html on purpose: that file is a
+// byte-for-byte copy of the arcade build plus one script tag, so everything
+// demo-specific has to be in this one.
+//
+// `gameStarted`, `Sound`, `selectCount` and friends are top-level bindings in
+// index.html's script. Separate <script> tags share one global scope, so they
+// are reachable as bare identifiers — but let/const never become window
+// properties, so window.gameStarted would always read undefined.
+function autoStartDemoGame() {
+    if (typeof startGame !== 'function' || typeof selectCount !== 'function') return;
+    if (typeof gameStarted !== 'undefined' && gameStarted) return;
+    if (isDemoExpired()) return;
+
+    const hasSound = typeof Sound === 'object' && Sound && typeof Sound.musicPlay === 'function';
+    const realPlay = hasSound ? Sound.musicPlay : null;
+    if (hasSound) Sound.musicPlay = function () {};   // hold the score back
+
+    selectCount(3);   // builds the roster with the standard defaults: player 1
+    startGame();      // human, players 2 and 3 CPU
+
+    if (hasSound) Sound.musicPlay = realPlay;
+
+    if (typeof showHowTo === 'function') {
+        showHowTo();
+        // Start the score on the way out of the sheet, whichever button does it.
+        const realClose = window.closeHowTo;
+        window.closeHowTo = function (...args) {
+            window.closeHowTo = realClose;            // first exit only
+            const out = realClose.apply(this, args);
+            if (hasSound) Sound.musicPlay();
+            return out;
+        };
+    } else if (hasSound) {
+        Sound.musicPlay();
+    }
+}
+
 initDemo();
 
 if (typeof window !== 'undefined') {
@@ -409,6 +453,7 @@ if (typeof window !== 'undefined') {
         liftMenuFootnote();
         if (!checkAndShowOverlay()) {
             startExpirationChecker();
+            autoStartDemoGame();
         }
     });
 }
@@ -417,6 +462,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
     setTimeout(() => {
         addPermanentTimer();
         liftMenuFootnote();
-        checkAndShowOverlay();
+        if (!checkAndShowOverlay()) autoStartDemoGame();
     }, 100);
 }
