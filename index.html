@@ -47,6 +47,21 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0a0f08;font-family:
 .ai-toggle{background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.4);font-size:10px;letter-spacing:2px;padding:6px 10px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
 .ai-toggle.on{border-color:rgba(80,180,100,0.6);color:#50b464;background:rgba(80,180,100,0.08)}
 
+/* Cinema Cam — only offered when every seat is a CPU */
+.cinema-row{display:flex;flex-direction:column;align-items:center;gap:10px;margin:-8px 0 22px}
+.cinema-row.hidden{display:none}
+.cinema-toggle{font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;text-indent:3px;text-transform:uppercase;white-space:nowrap;padding:10px 22px;background:transparent;border:1px solid rgba(212,168,75,0.35);color:rgba(212,168,75,0.6);cursor:pointer;transition:all 0.25s}
+.cinema-toggle:hover{border-color:rgba(212,168,75,0.7);color:#d4a84b}
+.cinema-toggle.on{border-color:#d4a84b;color:#d4a84b;background:rgba(212,168,75,0.12);box-shadow:0 0 18px rgba(212,168,75,0.22)}
+.cinema-note{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;line-height:1.7;color:rgba(232,224,204,0.32);text-align:center;max-width:330px}
+#cinema-hint{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);z-index:40;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;line-height:1.9;color:rgba(232,224,204,0.45);text-align:center;pointer-events:none;opacity:0;transition:opacity 1.1s ease;text-shadow:0 1px 6px rgba(0,0,0,0.8)}
+#cinema-hint.show{opacity:1}
+/* Cinema is a recording mode: nothing on screen but the forest. The pointer
+   comes back the moment the rig is held, so it can still be found. */
+body.cinema #hud{display:none!important}
+body.cinema #renderCanvas{cursor:none}
+body.cinema.cinema-held #renderCanvas{cursor:default}
+
 /* Options */
 .options-grid{display:flex;flex-direction:column;gap:18px;margin:14px 0 4px;width:min(430px,84vw)}
 .option-row{display:flex;align-items:center;gap:16px}
@@ -286,9 +301,9 @@ body.mobile .hive-done p{font-size:12px}
   <div class="forest-divider"></div>
   <button class="menu-btn" id="resume-btn" style="display:none" onclick="resumeGame()">Resume Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')">Play Game</button>
+  <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
   <button class="menu-btn" onclick="openHivePuzzle()">Hive Puzzle</button>
   <button class="menu-btn" onclick="showScreen('screen-options')">Options</button>
-  <button class="menu-btn" onclick="showScreen('screen-rules')">Rules</button>
   <button class="menu-btn" onclick="window.location.href='https://simonallmer.com/arcade'">Back to Arcade</button>
   <div class="copyright">© 2021–2026 Simon Allmer Entertainment</div>
 </div>
@@ -314,6 +329,10 @@ body.mobile .hive-done p{font-size:12px}
   <div class="game-subtitle">Name your colony · Toggle CPU</div>
   <div class="forest-divider"></div>
   <div class="names-grid" id="names-grid"></div>
+  <div id="cinema-row" class="cinema-row hidden">
+    <button class="cinema-toggle" id="cinema-toggle" onclick="toggleCinemaOption()">Cinema Cam</button>
+    <div class="cinema-note">Spectator rig for capture — no HUD, camera on rails.<br>Click to change shot · ↑ ↓ for direction · Space to hold · Esc for the menu</div>
+  </div>
   <button class="menu-btn" onclick="startGame()">Begin Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')" style="font-size:11px;min-width:140px;margin-top:6px">Back</button>
 </div>
@@ -491,6 +510,9 @@ body.mobile .hive-done p{font-size:12px}
     </div>
   </div>
 </div>
+
+<!-- CINEMA CAM — one fading line of help, then nothing but the board -->
+<div id="cinema-hint"></div>
 
 <!-- PAUSE MODAL -->
 <div id="pause-modal">
@@ -1348,7 +1370,7 @@ let selectedBee = null;
 let actionMode = 'SELECT'; // SELECT | MOVE | CHAIN | CAPTURE_HOME
 let chainSource = null, captureData = null;
 let round = 1;
-let gameConfig = { playerCount: 3, playerNames: [], isAI: [] };
+let gameConfig = { playerCount: 3, playerNames: [], isAI: [], cinema: false };
 let highlightedHexes = [];
 let chainHighlights = [];
 let captureHighlights = [];
@@ -1556,7 +1578,7 @@ function buildNamesForm(n) {
         inp.dataset.pristine = '1';
       }
     };
-    ai.onclick = () => setCPU(ai.dataset.on !== '1');
+    ai.onclick = () => { setCPU(ai.dataset.on !== '1'); refreshCinemaOption(); };
     // Everyone but player 1 starts as a CPU opponent — the common case is one
     // person sitting down against the computer.
     setCPU(i > 0);
@@ -1565,7 +1587,40 @@ function buildNamesForm(n) {
     row.appendChild(ai);
     grid.appendChild(row);
   }
+  refreshCinemaOption();
 }
+
+// Cinema Cam is a capture tool, not a way to play: it only makes sense when
+// nobody is waiting on a turn, so the option appears only once every seat is a
+// CPU and disarms itself the moment a human takes one back.
+function allSeatsAreCPU() {
+  const n = gameConfig.playerCount;
+  if (!n) return false;
+  for (let i = 0; i < n; i++) {
+    const ai = document.getElementById(`ai-toggle-${i}`);
+    if (!ai || ai.dataset.on !== '1') return false;
+  }
+  return true;
+}
+
+function refreshCinemaOption() {
+  const row = document.getElementById('cinema-row');
+  if (!row) return;
+  const available = allSeatsAreCPU();
+  row.classList.toggle('hidden', !available);
+  if (!available) setCinemaOption(false);
+}
+
+function setCinemaOption(on) {
+  gameConfig.cinema = on;
+  const btn = document.getElementById('cinema-toggle');
+  if (btn) {
+    btn.classList.toggle('on', on);
+    btn.textContent = on ? 'Cinema Cam · On' : 'Cinema Cam';
+  }
+}
+
+function toggleCinemaOption() { setCinemaOption(!gameConfig.cinema); }
 
 // ── BABYLON.JS INIT ────────────────────────────────────────────
 const canvas = document.getElementById('renderCanvas');
@@ -2118,7 +2173,9 @@ function startGame() {
   buildBoard(gameConfig.playerCount >= 4);
   initGame();
   gameStarted = true;
-  maybeShowHowTo();
+  // An all-CPU table can hand the camera to the rig instead of the player.
+  if (gameConfig.cinema && gameConfig.isAI.every(Boolean)) enterCinemaMode();
+  else maybeShowHowTo();
 }
 
 function initGame() {
@@ -2706,6 +2763,8 @@ function attachTapHandler() {
 }
 
 function onTap(px, py) {
+  // In cinema mode a tap is the shot change — the board is not playable.
+  if (Cinema.on) { cinemaNextShot(); return; }
   if (isAITurn) return;
   const player = players[currentPlayerIndex];
   if (player?.isAI) return;
@@ -3307,6 +3366,193 @@ function togglePause() {
   }
 }
 
+// ── CINEMA CAM ─────────────────────────────────────────────────
+// A camera rig for recording trailer footage of a CPU-only match: the HUD is
+// gone, board input is off, and the camera runs one slow move at a time. Click
+// for the next shot, ↑/↓ for the direction it runs in, Space to hold, Esc out.
+//
+// Direction is a separate axis from the shot on purpose. A list holding both
+// "orbit clockwise" and "orbit anticlockwise" puts a full reversal one click
+// away from its own opposite, and clicking between them whips the camera back
+// on itself — so each move appears once and ↑/↓ chooses which way it runs.
+//
+// Nothing here is ever *set*: framing eases toward the shot's targets, and the
+// travelling moves ease their **velocity** rather than their position. That is
+// what makes a reversal survivable — the orbit arcs down through a stall and
+// back up the other way instead of snapping from full speed to full speed.
+const CINE_TRUCK_SPEED = 0.60;  // board units/s the rig slides sideways
+const CINE_DOLLY_SPEED = 1.10;  // board units/s the rig moves in or out
+
+const CINEMA_SHOTS = [
+  { name:'orbit',      spin: 0.055, beta: Math.PI/3.6,  radius: 34 },
+  { name:'low orbit',  spin: 0.075, beta: Math.PI/2.35, radius: 25 },
+  { name:'truck',      spin: 0.012, beta: Math.PI/3.1,  radius: 27, truck: CINE_TRUCK_SPEED },
+  { name:'dolly',      spin: 0.030, beta: Math.PI/3.5,              dolly: CINE_DOLLY_SPEED },
+  { name:"bird's eye", spin: 0.100, beta: 0.075,        radius: 30 }
+];
+
+const CINE_SETTLE    = 1.8;   // seconds for the ease onto a new shot, and for a reversal
+const CINE_PAN_RANGE = 8;     // how far off centre the truck runs before turning back
+const CINE_DOLLY_IN  = 18;    // and the ends the dolly turns around at
+const CINE_DOLLY_OUT = 48;
+
+const CINE_HOME = new BABYLON.Vector3(0, 0.5, 0);
+
+const Cinema = {
+  on: false, held: false, shot: 0, last: 0,
+  dir: 1,      // the direction the operator asked for, via ↑/↓
+  travel: 1,   // the direction a travelling move is running right now — flips at its ends
+  spin: 0, pan: 0, panV: 0, dollyV: 0, limits: null
+};
+
+function enterCinemaMode() {
+  if (Cinema.on) return;
+  Cinema.on = true;
+  Cinema.held = false;
+  Cinema.dir = 1; Cinema.travel = 1;
+  Cinema.spin = 0;   // from a standstill, so the opening orbit eases up to speed
+  Cinema.pan = 0; Cinema.panV = 0; Cinema.dollyV = 0;
+  Cinema.last = performance.now();
+
+  deselectBee();
+  closeHowTo();
+  document.body.classList.add('cinema');
+  document.body.classList.remove('cinema-held');
+  document.getElementById('hud').classList.add('hidden');
+
+  // The play limits keep the camera at a sensible playing angle; the rig wants
+  // the roof and the floor of that range as well.
+  Cinema.limits = {
+    lowerBeta: camera.lowerBetaLimit, upperBeta: camera.upperBetaLimit,
+    lowerRadius: camera.lowerRadiusLimit, upperRadius: camera.upperRadiusLimit
+  };
+  camera.lowerBetaLimit   = 0.04;
+  camera.upperBetaLimit   = Math.PI/2.15;
+  camera.lowerRadiusLimit = 14;
+  camera.upperRadiusLimit = 56;
+  camera.detachControl(canvas);   // the rig owns the camera now
+
+  cinemaSetShot(0);
+  showCinemaHint('cinema cam &nbsp;·&nbsp; click: next shot &nbsp;·&nbsp; ↑ ↓: direction &nbsp;·&nbsp; space: hold &nbsp;·&nbsp; esc: menu', 4500);
+}
+
+function exitCinemaMode() {
+  if (!Cinema.on) return;
+  Cinema.on = false;
+  Cinema.held = false;
+  document.body.classList.remove('cinema', 'cinema-held');
+  hideCinemaHint();
+  if (Cinema.limits) {
+    camera.lowerBetaLimit   = Cinema.limits.lowerBeta;
+    camera.upperBetaLimit   = Cinema.limits.upperBeta;
+    camera.lowerRadiusLimit = Cinema.limits.lowerRadius;
+    camera.upperRadiusLimit = Cinema.limits.upperRadius;
+    Cinema.limits = null;
+  }
+  // The rig may have parked the camera off-centre or outside the play range;
+  // hand it back framed the way a player expects.
+  camera.target.copyFrom(CINE_HOME);
+  camera.beta   = Math.min(camera.upperBetaLimit, Math.max(camera.lowerBetaLimit, camera.beta));
+  camera.radius = Math.min(camera.upperRadiusLimit, Math.max(camera.lowerRadiusLimit, camera.radius));
+  camera.attachControl(canvas, true);
+  if (gameStarted && activeScreen === null) document.getElementById('hud').classList.remove('hidden');
+}
+
+function cinemaSetShot(i) {
+  const n = CINEMA_SHOTS.length;
+  Cinema.shot = ((i % n) + n) % n;
+  // A travelling shot always starts out running the way the operator last
+  // asked for, wherever the auto-reversals had got to in the previous one.
+  Cinema.travel = Cinema.dir;
+}
+
+function cinemaNextShot() { hideCinemaHint(); cinemaSetShot(Cinema.shot + 1); }
+function cinemaPrevShot() { hideCinemaHint(); cinemaSetShot(Cinema.shot - 1); }
+
+// ↑ and ↓ *set* the direction rather than toggling it, so either key always
+// lands the same way round whatever the rig was doing.
+function cinemaSetDirection(dir) { Cinema.dir = Cinema.travel = dir; hideCinemaHint(); }
+
+// Space freezes the move without pausing the match — the bees keep playing
+// through a locked-off frame, which is exactly what a static shot wants.
+function cinemaToggleHold() {
+  Cinema.held = !Cinema.held;
+  document.body.classList.toggle('cinema-held', Cinema.held);
+  hideCinemaHint();
+}
+
+function cinemaTick() {
+  if (!Cinema.on) return;
+  const now = performance.now();
+  const dt  = Math.min(0.05, (now - Cinema.last) / 1000);   // a tab-out must not lurch
+  Cinema.last = now;
+  if (Cinema.held) return;
+
+  const s = CINEMA_SHOTS[Cinema.shot];
+  // Frame-rate independent ease: the same fraction of the gap per second,
+  // whatever the frame rate.
+  const k = 1 - Math.exp(-dt / CINE_SETTLE);
+
+  // Azimuth always drifts, even on the moves that are "about" something else —
+  // a perfectly still frame reads as a freeze, not as a choice. Easing the rate
+  // rather than assigning it is what lets ↑/↓ reverse an orbit mid-shot: the
+  // spin coasts down through zero and builds again the other way.
+  Cinema.spin += (s.spin * Cinema.dir - Cinema.spin) * k;
+  camera.alpha += Cinema.spin * dt;
+
+  // Truck — a lateral slide. `travel` is a latch, not a per-frame decision:
+  // reaching the end flips it and it stays flipped, so the rig runs the whole
+  // way back. Deciding afresh each frame instead makes the limit a place the
+  // truck settles at and stops dead, which is not a move, it is a stall.
+  let wantPanV = 0;
+  if (s.truck) {
+    if (Cinema.travel > 0 && Cinema.pan >  CINE_PAN_RANGE) Cinema.travel = -1;
+    if (Cinema.travel < 0 && Cinema.pan < -CINE_PAN_RANGE) Cinema.travel =  1;
+    wantPanV = s.truck * Cinema.travel;
+  }
+  Cinema.panV += (wantPanV - Cinema.panV) * k;
+  Cinema.pan  += Cinema.panV * dt;
+  if (!s.truck) Cinema.pan += (0 - Cinema.pan) * k;   // other shots recentre
+
+  // Dolly — the same latch on the radius. Its velocity keeps being applied
+  // while it decays, so leaving the shot coasts to a stop rather than cutting.
+  let wantDollyV = 0;
+  if (s.dolly) {
+    if (Cinema.travel > 0 && camera.radius > CINE_DOLLY_OUT) Cinema.travel = -1;
+    if (Cinema.travel < 0 && camera.radius < CINE_DOLLY_IN)  Cinema.travel =  1;
+    wantDollyV = s.dolly * Cinema.travel;
+  }
+  Cinema.dollyV += (wantDollyV - Cinema.dollyV) * k;
+  camera.radius += Cinema.dollyV * dt;
+  if (!s.dolly) camera.radius += (s.radius - camera.radius) * k;
+
+  camera.beta += (s.beta - camera.beta) * k;
+
+  // Trucking an arc-rotate camera means sliding its target sideways: the rig
+  // keeps looking the same way while the whole thing slides across the board.
+  const right = Math.abs(Cinema.pan) > 1e-4;
+  camera.target.set(
+    CINE_HOME.x + (right ? -Math.sin(camera.alpha) * Cinema.pan : 0),
+    CINE_HOME.y,
+    CINE_HOME.z + (right ?  Math.cos(camera.alpha) * Cinema.pan : 0)
+  );
+}
+
+let cinemaHintTimer = null;
+function showCinemaHint(html, ms) {
+  const el = document.getElementById('cinema-hint');
+  if (!el) return;
+  el.innerHTML = html;
+  el.classList.add('show');
+  clearTimeout(cinemaHintTimer);
+  cinemaHintTimer = setTimeout(hideCinemaHint, ms);
+}
+function hideCinemaHint() {
+  clearTimeout(cinemaHintTimer);
+  const el = document.getElementById('cinema-hint');
+  if (el) el.classList.remove('show');
+}
+
 // ── RENDER LOOP ────────────────────────────────────────────────
 function animateScene(time) {
   const t = time * 0.001;
@@ -3354,6 +3600,7 @@ function animateScene(time) {
 createScene();
 engine.runRenderLoop(() => {
   animateScene(performance.now());
+  cinemaTick();
   scene.render();
 });
 window.addEventListener('resize', () => engine.resize());
@@ -3364,6 +3611,17 @@ document.addEventListener('keydown', e => {
     if (/^[0-9]$/.test(e.key)) { hivePlace(+e.key); return; }
     if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); hivePlace(0); return; }
     if (e.code === 'Escape') { showScreen('screen-main'); return; }
+    return;
+  }
+  // The rig takes the keyboard whole: Space holds the move rather than ending a
+  // turn, and Escape drops back to the menu instead of the player-count screen.
+  if (Cinema.on) {
+    if (e.code === 'Space')           { e.preventDefault(); cinemaToggleHold(); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); cinemaNextShot(); }
+    else if (e.code === 'ArrowLeft')  { e.preventDefault(); cinemaPrevShot(); }
+    else if (e.code === 'ArrowUp')    { e.preventDefault(); cinemaSetDirection( 1); }
+    else if (e.code === 'ArrowDown')  { e.preventDefault(); cinemaSetDirection(-1); }
+    else if (e.code === 'Escape')     { exitCinemaMode(); showScreen('screen-main'); }
     return;
   }
   if (e.code === 'Space') {

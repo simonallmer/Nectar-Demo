@@ -269,6 +269,24 @@ if (typeof location !== 'undefined' && /[?&]resetdemo=1/.test(location.search)) 
     resetDemoTimer();
 }
 
+// ── NO CINEMA CAM IN THE DEMO ──────────────────────────────────
+// Cinema Cam is a capture tool for the full arcade build, so it stays out of
+// the trial. index.html is a byte-for-byte copy and ships the markup either
+// way; what it does not get here is the code that reveals it. The arcade build
+// un-hides the row from refreshCinemaOption() whenever every seat is a CPU —
+// this replaces that with a version that only ever hides it, and blanks the
+// arming click as well so the option cannot be reached by any route.
+if (typeof refreshCinemaOption === 'function') {
+    window.refreshCinemaOption = function () {
+        const row = document.getElementById('cinema-row');
+        if (row) row.classList.add('hidden');
+        if (typeof setCinemaOption === 'function') setCinemaOption(false);
+    };
+}
+if (typeof toggleCinemaOption === 'function') {
+    window.toggleCinemaOption = function () {};
+}
+
 // The menu is reachable from the demo now, and on a narrow screen its
 // copyright line sits exactly where the timer chip does.
 function liftMenuFootnote() {
