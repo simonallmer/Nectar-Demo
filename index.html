@@ -53,9 +53,20 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0a0f08;font-family:
 .cinema-toggle{font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;text-indent:3px;text-transform:uppercase;white-space:nowrap;padding:10px 22px;background:transparent;border:1px solid rgba(212,168,75,0.35);color:rgba(212,168,75,0.6);cursor:pointer;transition:all 0.25s}
 .cinema-toggle:hover{border-color:rgba(212,168,75,0.7);color:#d4a84b}
 .cinema-toggle.on{border-color:#d4a84b;color:#d4a84b;background:rgba(212,168,75,0.12);box-shadow:0 0 18px rgba(212,168,75,0.22)}
+.cinema-looks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:340px}
+.cinema-looks.hidden{display:none}
+.look-btn{font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-indent:2px;text-transform:uppercase;white-space:nowrap;padding:7px 12px;background:transparent;border:1px solid rgba(255,255,255,0.14);color:rgba(232,224,204,0.42);cursor:pointer;transition:all 0.2s}
+.look-btn:hover{border-color:rgba(212,168,75,0.5);color:rgba(212,168,75,0.8)}
+.look-btn.on{border-color:#d4a84b;color:#d4a84b;background:rgba(212,168,75,0.12)}
 .cinema-note{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:1px;line-height:1.7;color:rgba(232,224,204,0.32);text-align:center;max-width:330px}
 #cinema-hint{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);z-index:40;font-family:'Inter',sans-serif;font-size:11px;letter-spacing:2px;line-height:1.9;color:rgba(232,224,204,0.45);text-align:center;pointer-events:none;opacity:0;transition:opacity 1.1s ease;text-shadow:0 1px 6px rgba(0,0,0,0.8)}
 #cinema-hint.show{opacity:1}
+/* Startup failure notice — see showFatalError() */
+#fatal-error{position:fixed;inset:auto 0 0 0;top:50%;transform:translateY(-50%);z-index:999;margin:0 auto;max-width:min(560px,86vw);background:rgba(10,6,4,0.96);border:1px solid rgba(200,70,70,0.55);padding:26px 30px;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,0.8)}
+#fatal-error h2{font-family:'Cinzel',serif;font-size:15px;letter-spacing:3px;text-transform:uppercase;color:#c86464;margin-bottom:14px}
+#fatal-error p{font-family:'Inter',sans-serif;font-size:12px;line-height:1.75;color:rgba(232,224,204,0.78);margin-bottom:10px;word-break:break-word}
+#fatal-error .fatal-hint{color:rgba(232,224,204,0.45);font-size:11px;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;margin-top:14px}
+#fatal-error code{font-family:ui-monospace,Menlo,monospace;color:#d4a84b}
 /* Cinema is a recording mode: nothing on screen but the forest. The pointer
    comes back the moment the rig is held, so it can still be found. */
 body.cinema #hud{display:none!important}
@@ -331,7 +342,8 @@ body.mobile .hive-done p{font-size:12px}
   <div class="names-grid" id="names-grid"></div>
   <div id="cinema-row" class="cinema-row hidden">
     <button class="cinema-toggle" id="cinema-toggle" onclick="toggleCinemaOption()">Cinema Cam</button>
-    <div class="cinema-note">Spectator rig for capture — no HUD, camera on rails.<br>Click to change shot · ↑ ↓ for direction · Space to hold · Esc for the menu</div>
+    <div id="cinema-looks" class="cinema-looks hidden"></div>
+    <div class="cinema-note">Spectator rig for capture — no HUD, camera on rails.<br>The look is fixed for the whole game. Tap or click to change shot · ↑ ↓ for direction · Space to hold · Esc for the menu</div>
   </div>
   <button class="menu-btn" onclick="startGame()">Begin Game</button>
   <button class="menu-btn" onclick="showScreen('screen-players')" style="font-size:11px;min-width:140px;margin-top:6px">Back</button>
@@ -530,6 +542,43 @@ body.mobile .hive-done p{font-size:12px}
 //  NECTAR  –  Premium Edition  (Babylon.js 6 single-file)
 //  © 2025 Simon Allmer Entertainment
 // ═══════════════════════════════════════════════════════════════
+
+// ── FAILING OUT LOUD ───────────────────────────────────────────
+// Every menu handler in this file is a hoisted function declaration, so when
+// something at startup throws, the menus carry on working and the only symptom
+// is a board that never arrives — a black screen with a live HUD on it, and
+// nothing said anywhere unless you open the console. This has to sit at the very
+// top: the first use of BABYLON is the player colour table a few hundred lines
+// down, far ahead of where the engine is built, so a guard next to the engine
+// would never be reached.
+var bootOk = false;   // var, not let — the handler below has to be able to read
+                      // this however early the failure lands, and a let would
+                      // still be in its temporal dead zone.
+
+function showFatalError(title, detail) {
+  if (document.getElementById('fatal-error')) return;
+  const box = document.createElement('div');
+  box.id = 'fatal-error';
+  const esc = s => String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  box.innerHTML =
+    `<h2>${esc(title)}</h2><p>${esc(detail)}</p>` +
+    `<p class="fatal-hint">Opened straight from disk? Serve it instead — run <code>serve.sh</code> ` +
+    `and visit the local address. Browsers restrict what a page may do over <code>file://</code>.</p>`;
+  (document.body || document.documentElement).appendChild(box);
+}
+
+window.addEventListener('error', e => {
+  if (bootOk) return;   // a later hiccup is not worth a full-screen notice
+  showFatalError('Nectar could not start',
+    (e.message || 'Unknown error') + (e.lineno ? ` (line ${e.lineno})` : ''));
+});
+
+if (typeof BABYLON === 'undefined') {
+  showFatalError('The 3D engine did not load',
+    'Nectar pulls Babylon.js from cdn.babylonjs.com and that request never arrived. Check the ' +
+    'connection, or whether an extension or content blocker is stopping it.');
+  throw new Error('BABYLON missing');
+}
 
 // ── CONSTANTS ──────────────────────────────────────────────────
 const HEX_R   = 1.55;   // axial radius (spacing)
@@ -1370,7 +1419,7 @@ let selectedBee = null;
 let actionMode = 'SELECT'; // SELECT | MOVE | CHAIN | CAPTURE_HOME
 let chainSource = null, captureData = null;
 let round = 1;
-let gameConfig = { playerCount: 3, playerNames: [], isAI: [], cinema: false };
+let gameConfig = { playerCount: 3, playerNames: [], isAI: [], cinema: false, cinemaLook: 1 };
 let highlightedHexes = [];
 let chainHighlights = [];
 let captureHighlights = [];
@@ -1412,13 +1461,20 @@ const BOARD_R = 12.6;
 // bury the whole board in dark green haze. Scale the density against the zoom
 // instead, which keeps the amount of fog *on the board* roughly constant.
 const FOG_AT_BOARD = 0.55;   // haze strength where the camera is looking
+// Cinema Cam's looks multiply this — the rig re-runs on every view change, so a
+// look that just assigned scene.fogDensity would be overwritten within a frame.
+let fogBoost = 1;
 function updateFogForZoom() {
   if (!scene || !camera) return;
-  scene.fogDensity = Math.min(0.026, FOG_AT_BOARD / camera.radius);
+  scene.fogDensity = Math.min(0.026, FOG_AT_BOARD / camera.radius) * fogBoost;
 }
 
 function fitCameraToScreen() {
   if (!IS_MOBILE || !camera) return;
+  // On a tablet this is wired to resize and orientationchange, and it assigns
+  // beta and radius outright — which would snatch the framing back mid-shot
+  // every time the device turned. The rig owns the camera while it is running.
+  if (Cinema.on) return;
   const portrait = window.innerHeight >= window.innerWidth;
   camera.beta = portrait ? Math.PI/3.8 : Math.PI/2.9;
   const tanV = Math.tan(camera.fov/2);
@@ -1618,9 +1674,34 @@ function setCinemaOption(on) {
     btn.classList.toggle('on', on);
     btn.textContent = on ? 'Cinema Cam · On' : 'Cinema Cam';
   }
+  const looks = document.getElementById('cinema-looks');
+  if (looks) {
+    looks.classList.toggle('hidden', !on);
+    if (on && !looks.children.length) buildCinemaLookPicker(looks);
+  }
 }
 
 function toggleCinemaOption() { setCinemaOption(!gameConfig.cinema); }
+
+// The look is chosen here rather than cycled in-game: switching it live meant a
+// keypress mid-take, and on weaker hardware it meant paying to build every
+// look's weather whether or not it was ever shown. Picked once, built once.
+function buildCinemaLookPicker(host) {
+  CINE_LOOKS.forEach((L, i) => {
+    const b = document.createElement('button');
+    b.className = 'look-btn';
+    b.textContent = L.name;
+    b.onclick = () => setCinemaLook(i);
+    host.appendChild(b);
+  });
+  setCinemaLook(gameConfig.cinemaLook);
+}
+
+function setCinemaLook(i) {
+  gameConfig.cinemaLook = i;
+  const host = document.getElementById('cinema-looks');
+  if (host) [...host.children].forEach((b, n) => b.classList.toggle('on', n === i));
+}
 
 // ── BABYLON.JS INIT ────────────────────────────────────────────
 const canvas = document.getElementById('renderCanvas');
@@ -2132,7 +2213,12 @@ function createNectarToken(q, r, value) {
   label.material = labelMat;
   label.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
   label.isPickable = false;
-  label.renderingGroupId = 1; // draw over the gem so the value is always readable
+  // The number has to clear the crystal it sits inside, but nothing else.
+  // A second rendering group did that by ignoring depth altogether, which also
+  // let the number shine through the trees in front of it — so instead it just
+  // rides a little way toward the camera (see animateScene) and depth-tests
+  // like everything else.
+  root.metadata.label = label;
 
   // Glow disc below
   const discMat = new BABYLON.StandardMaterial(`nd_${q}_${r}`, scene);
@@ -3391,6 +3477,12 @@ const CINEMA_SHOTS = [
   { name:"bird's eye", spin: 0.100, beta: 0.075,        radius: 30 }
 ];
 
+// The opening control line is off while the trailer is being shot — it is the
+// one piece of text the mode still puts on screen, and it lands in the first
+// five seconds of every take. Flip this back to true to get it again; the
+// controls are on the setup screen underneath the Cinema Cam button meanwhile.
+const CINE_SHOW_HINT = false;
+
 const CINE_SETTLE    = 1.8;   // seconds for the ease onto a new shot, and for a reversal
 const CINE_PAN_RANGE = 8;     // how far off centre the truck runs before turning back
 const CINE_DOLLY_IN  = 18;    // and the ends the dolly turns around at
@@ -3433,13 +3525,17 @@ function enterCinemaMode() {
   camera.detachControl(canvas);   // the rig owns the camera now
 
   cinemaSetShot(0);
-  showCinemaHint('cinema cam &nbsp;·&nbsp; click: next shot &nbsp;·&nbsp; ↑ ↓: direction &nbsp;·&nbsp; space: hold &nbsp;·&nbsp; esc: menu', 4500);
+  cineApplyLook(gameConfig.cinemaLook || 0);   // chosen at setup, fixed for the game
+  if (CINE_SHOW_HINT) {
+    showCinemaHint('cinema cam &nbsp;·&nbsp; tap: next shot &nbsp;·&nbsp; ↑ ↓: direction &nbsp;·&nbsp; space: hold &nbsp;·&nbsp; esc: menu', 5000);
+  }
 }
 
 function exitCinemaMode() {
   if (!Cinema.on) return;
   Cinema.on = false;
   Cinema.held = false;
+  cineDisposeFX();   // the played game gets the plain scene back
   document.body.classList.remove('cinema', 'cinema-held');
   hideCinemaHint();
   if (Cinema.limits) {
@@ -3486,6 +3582,7 @@ function cinemaTick() {
   const now = performance.now();
   const dt  = Math.min(0.05, (now - Cinema.last) / 1000);   // a tab-out must not lurch
   Cinema.last = now;
+  cineFXTick(dt);   // weather keeps running through a held frame
   if (Cinema.held) return;
 
   const s = CINEMA_SHOTS[Cinema.shot];
@@ -3536,6 +3633,436 @@ function cinemaTick() {
     CINE_HOME.y,
     CINE_HOME.z + (right ?  Math.cos(camera.alpha) * Cinema.pan : 0)
   );
+}
+
+// ── CINEMA CAM · LOOKS ─────────────────────────────────────────
+// Promo dressing, cycled with S, and reachable only from Cinema Cam — the
+// played game stays exactly as clean as it was. Everything here is built on
+// entering the mode and disposed on leaving it, so nothing survives into a
+// real match: no post-process stack, no weather, no extra lights.
+//
+// A look is data, not a code path. Each one is a set of grade / bloom / focus
+// / weather values, and one apply function reads whichever of them are present.
+const CINE_LOOKS = [
+  { name: 'clean' },
+
+  // Deep blacks, gold highlights, a long lens wide open. The one to shoot the
+  // hero frames on. The board's own materials are emissive almost everywhere,
+  // so the grade pulls saturation *down* and lets the warmth come back through
+  // the highlights — pushing saturation up just turns the whole thing to neon.
+  { name: 'gold',
+    exposure: 0.92, contrast: 1.62, tone: true,
+    clear: [0.012, 0.014, 0.010],
+    curves: { globalHue: 34, globalDensity: 10, globalSaturation: -14,
+              highlightsHue: 38, highlightsDensity: 60, highlightsSaturation: 22,
+              shadowsHue: 224, shadowsDensity: 45, shadowsSaturation: -25 },
+    bloom:  { weight: 0.65, threshold: 0.80, kernel: 96, scale: 0.5 },
+    focus:  { fStop: 0.7, focalLength: 220 },
+    vignette: 9, grain: 6, chroma: 8, sharpen: 0.3,
+    fog: { boost: 0.85, color: [0.045, 0.050, 0.035] },
+    sun: { intensity: 2.40, color: [1.00, 0.85, 0.55] },
+    amb: { intensity: 0.20, color: [0.40, 0.38, 0.28] },
+    fill:{ intensity: 0.70, color: [1.00, 0.75, 0.38] } },
+
+  // Downpour: cold grade, the board under a sheet of water, and lightning.
+  { name: 'rain',
+    exposure: 1.30, contrast: 1.45, tone: true,
+    clear: [0.035, 0.045, 0.055],
+    curves: { globalHue: 210, globalDensity: 35, globalSaturation: -25,
+              highlightsHue: 205, highlightsDensity: 40, highlightsSaturation: -10,
+              shadowsHue: 225, shadowsDensity: 50, shadowsSaturation: -20 },
+    bloom:  { weight: 0.60, threshold: 0.70, kernel: 64, scale: 0.5 },
+    focus:  { fStop: 1.1, focalLength: 180 },
+    vignette: 7, grain: 12, chroma: 6, sharpen: 0.4,
+    fog: { boost: 1.35, color: [0.16, 0.19, 0.22] },
+    sun: { intensity: 1.75, color: [0.78, 0.86, 1.00] },
+    amb: { intensity: 0.62, color: [0.48, 0.58, 0.70] },
+    fill:{ intensity: 0.35, color: [0.65, 0.80, 1.00] },
+    rain: true, water: true, lightning: true },
+
+  // Dawn fog with the sun coming through it. The haze is the whole shot, so it
+  // is the one value worth being careful with — much past this and the board
+  // goes to milk.
+  { name: 'mist',
+    exposure: 1.02, contrast: 1.45, tone: true,
+    clear: [0.100, 0.120, 0.100],
+    curves: { globalHue: 46, globalDensity: 22, globalSaturation: -18,
+              highlightsHue: 44, highlightsDensity: 40, highlightsSaturation: 10,
+              shadowsHue: 200, shadowsDensity: 20, shadowsSaturation: -12 },
+    bloom:  { weight: 1.10, threshold: 0.45, kernel: 128, scale: 0.5 },
+    focus:  { fStop: 1.4, focalLength: 160 },
+    vignette: 6, grain: 5, chroma: 4, sharpen: 0.2,
+    fog: { boost: 1.70, color: [0.200, 0.235, 0.195] },
+    sun: { intensity: 2.10, color: [1.00, 0.93, 0.76] },
+    amb: { intensity: 0.42, color: [0.55, 0.60, 0.52] },
+    fill:{ intensity: 0.35, color: [1.00, 0.90, 0.72] },
+    mist: true, godrays: true },
+
+  // Night: the nectar is the only warm thing on the board.
+  { name: 'night',
+    exposure: 1.12, contrast: 1.70, tone: true,
+    clear: [0.008, 0.010, 0.020],
+    curves: { globalHue: 228, globalDensity: 55, globalSaturation: -20,
+              highlightsHue: 40,  highlightsDensity: 30, highlightsSaturation: 30,
+              shadowsHue: 235, shadowsDensity: 70, shadowsSaturation: -25 },
+    bloom:  { weight: 1.35, threshold: 0.35, kernel: 128, scale: 0.5 },
+    focus:  { fStop: 1.0, focalLength: 190 },
+    vignette: 8, grain: 10, chroma: 7, sharpen: 0.25,
+    fog: { boost: 1.6, color: [0.03, 0.05, 0.10] },
+    sun: { intensity: 0.68, color: [0.55, 0.68, 1.00] },
+    amb: { intensity: 0.32, color: [0.20, 0.28, 0.48] },
+    fill:{ intensity: 0.42, color: [0.50, 0.70, 1.00] },
+    motes: true }
+];
+
+const FX = {
+  built: false, look: 0,
+  pipeline: null, glow: null, godrays: null,
+  rain: null, mist: null, motes: null,
+  water: null, mirror: null, mirrorAge: 0,
+  saved: null, flash: 0, nextFlash: 4
+};
+
+// Particle art, drawn rather than downloaded — the page loads no image assets.
+function cineSoftTexture(name, size, draw) {
+  const t = new BABYLON.DynamicTexture(name, { width: size, height: size }, scene, true);
+  draw(t.getContext(), size);
+  t.update();
+  t.hasAlpha = true;
+  return t;
+}
+
+// Builds only what the chosen look actually shows. This used to build all of it
+// up front — three particle systems and a mirror texture that re-renders the
+// whole scene every frame — no matter which look was on, which is most of the
+// cost of the mode on older hardware and all of it wasted for four looks in five.
+function cineBuildFX(L) {
+  if (FX.built) return;
+  FX.built = true;
+
+  const sun  = scene.getLightByName('sun');
+  const amb  = scene.getLightByName('amb');
+  const fill = scene.getLightByName('fill');
+  FX.saved = {
+    fogColor: scene.fogColor.clone(),
+    clearColor: scene.clearColor.clone(),
+    lights: [sun, amb, fill].map(l => l && ({
+      light: l, intensity: l.intensity, diffuse: l.diffuse.clone()
+    }))
+  };
+
+  // ── post stack ── (the 'clean' look grades nothing, so it pays for nothing)
+  if (L.exposure) {
+    FX.pipeline = new BABYLON.DefaultRenderingPipeline('cineFX', true, scene, [camera]);
+    FX.pipeline.samples = 2;
+    FX.pipeline.grain.animated = true;
+    FX.pipeline.depthOfField.focalLength = 80;
+  }
+
+  // Only the nectar crystals glow. A scene-wide glow layer catches all 124 of
+  // the board's emissive meshes — every hex, every bee — and the whole thing
+  // goes to neon, so the layer is given an explicit include list instead.
+  if (L.bloom) {
+    FX.glow = new BABYLON.GlowLayer('cineGlow', scene, { blurKernelSize: 48 });
+    FX.glow.intensity = 0;
+    cineRefreshGlow();
+  }
+
+  // ── rain ──
+  if (L.rain) {
+  const drop = cineSoftTexture('cineDrop', 64, (c, s) => {
+    const g = c.createLinearGradient(0, 0, 0, s);
+    g.addColorStop(0.00, 'rgba(255,255,255,0)');
+    g.addColorStop(0.45, 'rgba(220,240,255,0.95)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.fillRect(s * 0.42, 0, s * 0.16, s);
+  });
+  FX.rain = new BABYLON.ParticleSystem('cineRain', 2600, scene);
+  FX.rain.particleTexture = drop;
+  FX.rain.emitter = new BABYLON.Vector3(0, 15, 0);
+  FX.rain.minEmitBox = new BABYLON.Vector3(-14, 0, -14);
+  FX.rain.maxEmitBox = new BABYLON.Vector3( 14, 0,  14);
+  FX.rain.color1 = new BABYLON.Color4(0.85, 0.92, 1.0, 0.85);
+  FX.rain.color2 = new BABYLON.Color4(0.95, 0.98, 1.0, 0.55);
+  FX.rain.colorDead = new BABYLON.Color4(0.7, 0.8, 1.0, 0);
+  FX.rain.minSize = 0.09; FX.rain.maxSize = 0.16;
+  FX.rain.minLifeTime = 0.6; FX.rain.maxLifeTime = 0.85;
+  FX.rain.emitRate = 3200;
+  FX.rain.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+  FX.rain.gravity = new BABYLON.Vector3(0, -75, 0);   // fast enough to streak
+  FX.rain.direction1 = new BABYLON.Vector3(-1.6, -14, -0.6);
+  FX.rain.direction2 = new BABYLON.Vector3(-2.4, -18, -1.2);
+  FX.rain.billboardMode = BABYLON.ParticleSystem.BILLBOARDMODE_STRETCHED;
+  FX.rain.isBillboardBased = true;
+  }
+
+  // Mist and fireflies share one soft dot; whichever needs it makes it.
+  let puff = null;
+  const softDot = () => puff || (puff = cineSoftTexture('cinePuff', 128, (c, s) => {
+    const g = c.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    g.addColorStop(0.0, 'rgba(255,255,255,0.55)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0.16)');
+    g.addColorStop(1.0, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, s, s);
+  }));
+
+  // ── mist banks ──
+  if (L.mist) {
+  FX.mist = new BABYLON.ParticleSystem('cineMist', 260, scene);
+  FX.mist.particleTexture = softDot();
+  FX.mist.emitter = new BABYLON.Vector3(0, 1.4, 0);
+  FX.mist.minEmitBox = new BABYLON.Vector3(-17, -0.6, -17);
+  FX.mist.maxEmitBox = new BABYLON.Vector3( 17,  2.2,  17);
+  FX.mist.color1 = new BABYLON.Color4(0.80, 0.85, 0.78, 0.055);
+  FX.mist.color2 = new BABYLON.Color4(0.68, 0.76, 0.70, 0.032);
+  FX.mist.colorDead = new BABYLON.Color4(0.8, 0.85, 0.8, 0);
+  FX.mist.minSize = 7; FX.mist.maxSize = 16;
+  FX.mist.minLifeTime = 14; FX.mist.maxLifeTime = 24;
+  FX.mist.emitRate = 9;
+  FX.mist.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+  FX.mist.direction1 = new BABYLON.Vector3(0.35, 0.02, 0.12);
+  FX.mist.direction2 = new BABYLON.Vector3(0.7, 0.06, 0.3);
+  FX.mist.minEmitPower = 0.1; FX.mist.maxEmitPower = 0.35;
+  FX.mist.minAngularSpeed = -0.06; FX.mist.maxAngularSpeed = 0.06;
+  }
+
+  // ── fireflies ──
+  if (L.motes) {
+  FX.motes = new BABYLON.ParticleSystem('cineMotes', 420, scene);
+  FX.motes.particleTexture = softDot();
+  FX.motes.emitter = new BABYLON.Vector3(0, 1.0, 0);
+  FX.motes.minEmitBox = new BABYLON.Vector3(-15, -0.4, -15);
+  FX.motes.maxEmitBox = new BABYLON.Vector3( 15,  4.5,  15);
+  FX.motes.color1 = new BABYLON.Color4(1.0, 0.82, 0.35, 0.9);
+  FX.motes.color2 = new BABYLON.Color4(1.0, 0.62, 0.20, 0.6);
+  FX.motes.colorDead = new BABYLON.Color4(1.0, 0.7, 0.3, 0);
+  FX.motes.minSize = 0.07; FX.motes.maxSize = 0.20;
+  FX.motes.minLifeTime = 4; FX.motes.maxLifeTime = 9;
+  FX.motes.emitRate = 45;
+  FX.motes.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+  FX.motes.direction1 = new BABYLON.Vector3(-0.25, 0.12, -0.25);
+  FX.motes.direction2 = new BABYLON.Vector3( 0.25, 0.35,  0.25);
+  FX.motes.minEmitPower = 0.05; FX.motes.maxEmitPower = 0.3;
+  }
+
+  // ── standing water ──
+  // A sheet laid just over the board rather than a change to the hex materials,
+  // so the game's own surfaces are never touched and there is nothing to undo.
+  // The mirror re-renders the scene every frame, so only rain ever pays for it.
+  if (!L.water) return;
+  const waterY = HEX_H + 0.012;
+  FX.mirror = new BABYLON.MirrorTexture('cineMirror', { ratio: 0.5 }, scene, true);
+  FX.mirror.mirrorPlane = new BABYLON.Plane(0, -1, 0, waterY);
+  FX.mirror.level = 0.85;
+  FX.mirror.adaptiveBlurKernel = 12;   // a wet sheen, not a looking glass
+
+  const wmat = new BABYLON.StandardMaterial('cineWaterMat', scene);
+  wmat.diffuseColor  = new BABYLON.Color3(0.06, 0.08, 0.10);
+  wmat.specularColor = new BABYLON.Color3(0.95, 0.97, 1.0);
+  wmat.specularPower = 220;
+  wmat.reflectionTexture = FX.mirror;
+  wmat.alpha = 0.62;
+  wmat.backFaceCulling = false;
+  wmat.disableDepthWrite = true;   // bees and tokens still read through it
+  // A disc of water on open ground draws its own rim, which reads as a
+  // spotlight rather than weather — so the sheet fades out before it ends.
+  wmat.opacityTexture = cineSoftTexture('cineWaterFade', 256, (c, s) => {
+    const g = c.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.62, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.86, 'rgba(255,255,255,0.35)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, s, s);
+  });
+
+  FX.water = BABYLON.MeshBuilder.CreateDisc('cineWater', { radius: 13.4, tessellation: 64 }, scene);
+  FX.water.rotation.x = Math.PI / 2;
+  FX.water.position.y = waterY;
+  FX.water.material = wmat;
+  FX.water.isPickable = false;
+  FX.water.setEnabled(false);
+  cineRefreshMirror();
+}
+
+// The reflection needs telling what to draw, and the board gains and loses
+// tokens all game, so the list is rebuilt rather than captured once.
+function cineRefreshMirror() {
+  if (!FX.mirror) return;
+  FX.mirror.renderList = scene.meshes.filter(m => m !== FX.water && m.isEnabled() && m.name !== 'gnd');
+}
+
+// Same reason: nectar is spawned and picked up throughout the match.
+function cineRefreshGlow() {
+  if (!FX.glow) return;
+  scene.meshes.forEach(m => { if (/^gem_/.test(m.name)) FX.glow.addIncludedOnlyMesh(m); });
+}
+
+// Called once, on entering the mode. The look no longer changes mid-game, so
+// everything below only ever has to switch things *on* — and each piece is only
+// touched if the chosen look asked for it to be built.
+function cineApplyLook(i) {
+  const n = CINE_LOOKS.length;
+  FX.look = ((i % n) + n) % n;
+  const L = CINE_LOOKS[FX.look];
+  cineBuildFX(L);
+
+  const p = FX.pipeline;
+  if (p) {
+    p.imageProcessingEnabled = true;
+    const ip = p.imageProcessing;
+    ip.toneMappingEnabled = !!L.tone;
+    ip.exposure = L.exposure;
+    ip.contrast = L.contrast;
+    ip.vignetteEnabled = !!L.vignette;
+    ip.vignetteWeight = L.vignette || 0;
+    ip.vignetteColor = new BABYLON.Color4(0, 0, 0, 0);
+    // The default vignette mode paints the colour on rather than darkening
+    // what is there, which barely registers over a dark scene.
+    ip.vignetteBlendMode = BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
+    ip.vignetteStretch = 0.35;
+    if (L.curves) {
+      const cc = new BABYLON.ColorCurves();
+      Object.keys(L.curves).forEach(k => { cc[k] = L.curves[k]; });
+      ip.colorCurves = cc;
+      ip.colorCurvesEnabled = true;
+    } else ip.colorCurvesEnabled = false;
+
+    p.bloomEnabled = !!L.bloom;
+    if (L.bloom) {
+      p.bloomWeight = L.bloom.weight;
+      p.bloomThreshold = L.bloom.threshold;
+      p.bloomKernel = L.bloom.kernel;
+      p.bloomScale = L.bloom.scale;
+    }
+    p.depthOfFieldEnabled = !!L.focus;
+    if (L.focus) {
+      p.depthOfFieldBlurLevel = BABYLON.DepthOfFieldEffectBlurLevel.High;
+      // The board is a tabletop but the scene is metres across, and at that
+      // distance a real 85mm at f/1.4 has yards of depth — nothing separates.
+      // A long lens wide open buys back the fall-off the miniature should have.
+      p.depthOfField.fStop = L.focus.fStop;
+      p.depthOfField.focalLength = L.focus.focalLength;
+    }
+    p.grainEnabled = !!L.grain;
+    if (L.grain) p.grain.intensity = L.grain;
+    p.chromaticAberrationEnabled = !!L.chroma;
+    if (L.chroma) p.chromaticAberration.aberrationAmount = L.chroma;
+    p.sharpenEnabled = !!L.sharpen;
+    if (L.sharpen) p.sharpen.edgeAmount = L.sharpen;
+  }
+
+  if (FX.glow) FX.glow.intensity = 0.55;
+
+  // Weather and light
+  fogBoost = L.fog ? L.fog.boost : 1;
+  scene.fogColor = L.fog ? BABYLON.Color3.FromArray(L.fog.color) : FX.saved.fogColor.clone();
+  scene.clearColor = L.clear ? new BABYLON.Color4(...L.clear, 1) : FX.saved.clearColor.clone();
+  updateFogForZoom();
+
+  [['sun', L.sun], ['amb', L.amb], ['fill', L.fill]].forEach(([name, cfg], idx) => {
+    const saved = FX.saved.lights[idx];
+    if (!saved || !saved.light) return;
+    saved.light.intensity = cfg ? cfg.intensity : saved.intensity;
+    saved.light.diffuse   = cfg ? BABYLON.Color3.FromArray(cfg.color) : saved.diffuse.clone();
+  });
+
+  if (FX.rain)  FX.rain.start();
+  if (FX.mist)  FX.mist.start();
+  if (FX.motes) FX.motes.start();
+  if (FX.water) { FX.water.setEnabled(true); cineRefreshMirror(); }
+
+  if (L.godrays) cineSetGodrays(true);
+  FX.flash = 0;
+  FX.nextFlash = 3 + Math.random() * 5;
+}
+
+// God rays are their own post-process rather than part of the pipeline, so they
+// are built and torn down with the look instead of being left switched off.
+function cineSetGodrays(on) {
+  if (on && !FX.godrays) {
+    FX.godrays = new BABYLON.VolumetricLightScatteringPostProcess(
+      'cineRays', 1.0, camera, null, 60, BABYLON.Texture.BILINEAR_SAMPLINGMODE, engine, false);
+    FX.godrays.mesh.material.diffuseColor = new BABYLON.Color3(1, 0.92, 0.72);
+    FX.godrays.mesh.position = new BABYLON.Vector3(-26, 17, -14);
+    FX.godrays.mesh.scaling.setAll(9);
+    FX.godrays.exposure = 0.16;
+    FX.godrays.decay = 0.968;
+    FX.godrays.weight = 0.32;
+    FX.godrays.density = 0.94;
+  } else if (!on && FX.godrays) {
+    FX.godrays.dispose(camera);
+    FX.godrays = null;
+  }
+}
+
+function cineFXTick(dt) {
+  if (!FX.built) return;
+  const L = CINE_LOOKS[FX.look];
+
+  // Focus rides the rig: whatever the camera is orbiting stays sharp, and the
+  // treeline behind it falls away. Babylon wants the distance in millimetres.
+  // The 'clean' look builds no pipeline at all, so none of this is a given.
+  if (FX.pipeline && FX.pipeline.depthOfFieldEnabled) {
+    FX.pipeline.depthOfField.focusDistance = camera.radius * 1000;
+  }
+
+  // The reflection and the glow list only have to keep up with nectar being
+  // spawned and taken, which happens on a turn, not on a frame.
+  FX.mirrorAge += dt;
+  if (FX.mirrorAge > 0.6) {
+    FX.mirrorAge = 0;
+    cineRefreshGlow();
+    if (L.water) cineRefreshMirror();
+  }
+
+  if (!L.lightning) return;
+  FX.nextFlash -= dt;
+  if (FX.nextFlash <= 0) {
+    FX.flash = 1;
+    FX.nextFlash = 3.5 + Math.random() * 7;
+  }
+  if (FX.flash > 0) {
+    // Two beats, bright then brighter, decaying fast — one clean ramp reads
+    // like a light being turned up, not like a strike.
+    FX.flash = Math.max(0, FX.flash - dt * 3.2);
+    const f = FX.flash;
+    const shape = Math.max(f * f, f > 0.55 ? (f - 0.55) * 2.2 : 0);
+    const sun = FX.saved.lights[0];
+    const amb = FX.saved.lights[1];
+    if (sun?.light) sun.light.intensity = L.sun.intensity + shape * 7;
+    if (amb?.light) amb.light.intensity = L.amb.intensity + shape * 2.4;
+    if (FX.pipeline && FX.pipeline.imageProcessingEnabled) {
+      FX.pipeline.imageProcessing.exposure = L.exposure + shape * 0.5;
+    }
+  }
+}
+
+function cineDisposeFX() {
+  if (!FX.built) return;
+  cineSetGodrays(false);
+  [FX.rain, FX.mist, FX.motes].forEach(ps => { if (ps) { ps.stop(); ps.dispose(); } });
+  FX.rain = FX.mist = FX.motes = null;
+  if (FX.water) { FX.water.material.dispose(); FX.water.dispose(); FX.water = null; }
+  if (FX.mirror) { FX.mirror.dispose(); FX.mirror = null; }
+  if (FX.glow) { FX.glow.dispose(); FX.glow = null; }
+  if (FX.pipeline) { FX.pipeline.dispose(); FX.pipeline = null; }
+
+  // Hand the scene's own lighting and haze back exactly as they were.
+  fogBoost = 1;
+  if (FX.saved) {
+    scene.fogColor = FX.saved.fogColor;
+    scene.clearColor = FX.saved.clearColor;
+    FX.saved.lights.forEach(s => {
+      if (!s || !s.light) return;
+      s.light.intensity = s.intensity;
+      s.light.diffuse = s.diffuse;
+    });
+  }
+  updateFogForZoom();
+  FX.saved = null;
+  FX.built = false;
+  FX.look = 0;
 }
 
 let cinemaHintTimer = null;
@@ -3593,11 +4120,21 @@ function animateScene(time) {
       n.metadata.gem.rotation.y = t * 1.2 + i;
     }
     n.position.y = HEX_H + 0.38 + Math.sin(t*1.8 + i*0.7)*0.08;
+    // Ride the billboarded value label out toward the camera, far enough to
+    // clear its own crystal. The token has no rotation, so the world-space
+    // offset is also the local one.
+    const label = n.metadata?.label;
+    if (label && camera) {
+      const d = camera.position.subtract(n.position);
+      const len = d.length();
+      if (len > 0.001) label.position.copyFrom(d.scaleInPlace(0.3 / len));
+    }
   });
 }
 
 // ── BOOTSTRAP ─────────────────────────────────────────────────
 createScene();
+bootOk = true;   // past here a thrown error is a bug, not a failure to start
 engine.runRenderLoop(() => {
   animateScene(performance.now());
   cinemaTick();
