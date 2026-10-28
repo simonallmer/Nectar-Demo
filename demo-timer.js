@@ -1,4 +1,4 @@
-const DEMO_DURATION_MS = 10 * 60 * 1000;
+const DEMO_DURATION_MS = 5 * 60 * 1000;
 const STORAGE_KEY_START = 'demoStartTime';
 const STORAGE_KEY_DATE = 'demoDate';
 
@@ -420,7 +420,7 @@ function startExpirationChecker() {
 }
 
 // ── STRAIGHT INTO A GAME ───────────────────────────────────────
-// The arcade build opens on its menus. The demo has ten minutes a day and
+// The arcade build opens on its menus. The demo has five minutes a day and
 // spends none of them on setup: a visitor lands directly in a three-player
 // match against two computers. The rules sheet stands in for the setup screens,
 // and the score is held back until they have read it and tapped through — music
